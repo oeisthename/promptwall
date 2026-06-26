@@ -16,7 +16,7 @@ class PromptWall:
     def __init__(self, policy_file: str) -> None:
         self.policy_engine = PolicyEngine.from_file(policy_file)
 
-    def enforce(self, tool_call: dict) -> dict:
+    def enforce(self, tool_call: dict[str, object]) -> dict[str, object]:
         """Evaluate a tool call against the active policy and return a decision.
 
         This is a stub — see src/promptwall/policy/engine.py for the real

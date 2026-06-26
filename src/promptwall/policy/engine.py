@@ -15,7 +15,7 @@ class PolicyEngine:
     be implemented during Weeks 1-3 of the build (see docs/ARCHITECTURE.md).
     """
 
-    def __init__(self, raw_policy: dict) -> None:
+    def __init__(self, raw_policy: dict[str, object]) -> None:
         self.raw_policy = raw_policy
         self.agent = raw_policy.get("agent")
         self.rules = raw_policy.get("rules", [])
@@ -27,7 +27,7 @@ class PolicyEngine:
             raw_policy = yaml.safe_load(f)
         return cls(raw_policy)
 
-    def evaluate(self, tool_call: dict) -> dict:
+    def evaluate(self, tool_call: dict[str, object]) -> dict[str, object]:
         """Evaluate a tool call against the loaded rules.
 
         Placeholder implementation: always allows. Real rule evaluation
