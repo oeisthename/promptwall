@@ -1,0 +1,42 @@
+# Example PromptWall policy for a research agent that can browse the web and
+# write files, but should never exfiltrate secrets or touch anything outside
+# its sandbox.
+
+definitions:
+  allowlist:
+    - api.internal-service.com
+    - api.partner.com
+    - en.wikipedia.org
+  patterns:
+    SECRET_PATTERN: '(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*\S+'
+
+agent: research-agent
+
+input_firewall:
+  mode: block
+  sensitivity: high
+
+rules:
+  - name: no-outbound-to-unknown-hosts
+    plane: output
+    match: tool_call.url not in allowlist
+    action: block
+    severity: critical
+
+  - name: no-secret-shaped-strings-in-output
+    plane: output
+    match: output contains pattern:SECRET_PATTERN
+    action: redact
+    severity: high
+
+  - name: writes-restricted-to-sandbox
+    plane: output
+    match: tool_call.path not startswith /sandbox
+    action: block
+    severity: critical
+
+  - name: payment-api-requires-approval
+    plane: output
+    match: tool_call.name == "submit_payment"
+    action: require_approval
+    severity: critical
