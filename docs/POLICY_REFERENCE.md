@@ -44,10 +44,15 @@ Match expressions reference fields on the tool call being evaluated:
 | `output`              | The content the agent is about to emit/write |
 
 Supported operators: `in`, `not in`, `contains`, `not contains`, `startswith`,
-`==`, `!=`.
+`not startswith`, `==`, `!=`.
 
 `allowlist` and `pattern:NAME` reference named lists/patterns defined in a separate
 `definitions` block (see below).
+
+Note on `tool_call.url` comparisons: `in`/`not in` against `allowlist` compare the
+parsed hostname of the URL, not the raw URL string — `tool_call.url not in allowlist`
+with `https://api.partner.com/v1` is compared against the hostname `api.partner.com`,
+so allowlist entries should be bare hostnames, not full URLs.
 
 ## Definitions block
 
