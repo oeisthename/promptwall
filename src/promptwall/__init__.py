@@ -1,6 +1,6 @@
 """PromptWall — runtime security middleware for AI agents."""
 
-from promptwall.policy.engine import PolicyEngine
+from promptwall.enforcer import EnforcementDecision, Enforcer
 
 __version__ = "0.1.0"
 
@@ -8,21 +8,30 @@ __version__ = "0.1.0"
 class PromptWall:
     """Main entrypoint for embedding PromptWall in an existing agent.
 
+    Combines the Input Firewall and Policy Engine via the Enforcer: every
+    enforce() call scans content (if provided) and checks the tool call
+    against policy, returning one combined decision. See
+    docs/ARCHITECTURE.md, "Data flow for a single tool call".
+
     Example:
         guard = PromptWall(policy_file="policies/example-agent.yaml")
-        result = guard.enforce(tool_call)
+        decision = guard.enforce(tool_call, content=fetched_page_text)
+        if decision.action == "block":
+            ...
     """
 
     def __init__(self, policy_file: str) -> None:
-        self.policy_engine = PolicyEngine.from_file(policy_file)
+        self.enforcer = Enforcer.from_file(policy_file)
 
-    def enforce(self, tool_call: dict[str, object]) -> dict[str, object]:
-        """Evaluate a tool call against the active policy and return a decision.
-
-        This is a stub — see src/promptwall/policy/engine.py for the real
-        implementation as it's built out.
+    def enforce(
+        self, tool_call: dict[str, object], content: str | None = None
+    ) -> EnforcementDecision:
+        """Evaluate a tool call (and optional content) and return a combined
+        decision. `content` may be inbound content the agent is about to
+        read, or outbound content it's about to emit — see Enforcer.enforce
+        for details.
         """
-        return self.policy_engine.evaluate(tool_call)
+        return self.enforcer.enforce(tool_call, content=content)
 
 
 __all__ = ["PromptWall"]
