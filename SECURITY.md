@@ -13,7 +13,7 @@ weaknesses seriously, and we ask that you report them responsibly.
 - Any other issue that could let a malicious actor act outside the boundaries
   PromptWall is supposed to enforce
 
-Instead, please report it privately by emailing **security@[your-domain-or-email]**
+Instead, please report it privately by emailing **security@promptwall.dev**
 with:
 
 - A description of the vulnerability and its potential impact
