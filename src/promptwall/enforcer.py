@@ -15,6 +15,7 @@ by choosing when to call enforce().
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal, cast
 
@@ -45,6 +46,14 @@ class EnforcementDecision(BaseModel):
     Keeps both sub-results intact (not just the final `action`) so that
     the Phase 4 audit ledger can record the full detail of what fired,
     not just the final verb.
+
+    Contract for callers deciding what to forward:
+    - action == "allow": forward the original `content` unchanged.
+    - action in ("redact", "sanitize"): forward `sanitized_content`
+      instead of the original — it is guaranteed non-None and guaranteed
+      different from the original whenever one of these two actions is
+      reported (see Enforcer.enforce()'s fail-closed check).
+    - action in ("block", "require_approval"): don't forward anything.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -54,6 +63,7 @@ class EnforcementDecision(BaseModel):
     firewall_result: ScanResult | None
     policy_result: dict[str, object]
     tool_call: dict[str, object]
+    sanitized_content: str | None = None
 
 
 def _firewall_action(scan_result: ScanResult | None) -> Action:
@@ -115,6 +125,59 @@ def _build_reason(scan_result: ScanResult | None, policy_result: dict[str, objec
         return "no rules or signals matched; default allow"
 
     return "; ".join(parts)
+
+
+def _apply_policy_redaction(text: str, policy_result: dict[str, object]) -> str:
+    """Apply the policy's redact_pattern (see PolicyEngine.evaluate()) to
+    `text`, replacing every match with a fixed marker. Returns `text`
+    unchanged if the decision isn't a redact action, or if it is but
+    there's no resolvable pattern to redact with (e.g. a redact rule that
+    matched on a tool_call field rather than output — nothing textual to
+    redact in that case).
+    """
+    if policy_result.get("action") != "redact":
+        return text
+    pattern = policy_result.get("redact_pattern")
+    if not isinstance(pattern, str):
+        return text
+    return re.sub(pattern, "[REDACTED]", text)
+
+
+def _build_sanitized_content(
+    content: str | None, scan_result: ScanResult | None, policy_result: dict[str, object]
+) -> str | None:
+    """Build the safe-to-forward version of `content`, chaining both
+    sub-systems' mutations when both fire.
+
+    Order: firewall sanitization first, then policy redaction applied to
+    the already-sanitized result — consistent with the same "firewall
+    wins ties" precedent from _combine(), since the firewall is reading
+    raw content directly rather than a policy-derived label of it.
+
+    Returns None if content is None (nothing to sanitize) or if neither
+    sub-system produced a mutation-type action.
+    """
+    if content is None:
+        return None
+
+    mutated = content
+    changed = False
+
+    if (
+        scan_result is not None
+        and scan_result.verdict == "sanitize"
+        and scan_result.sanitized_content is not None
+    ):
+        mutated = scan_result.sanitized_content
+        changed = True
+
+    if policy_result.get("action") == "redact":
+        redacted = _apply_policy_redaction(mutated, policy_result)
+        if redacted != mutated:
+            changed = True
+        mutated = redacted
+
+    return mutated if changed else None
 
 
 class Enforcer:
@@ -183,6 +246,25 @@ class Enforcer:
 
         combined_action = _combine(firewall_action, policy_action)
         reason = _build_reason(scan_result, policy_result)
+        sanitized_content = _build_sanitized_content(content, scan_result, policy_result)
+
+        # Fail-closed safety net: if the combined action is "redact" or
+        # "sanitize" but nothing was actually changed (sanitized_content is
+        # None, or — belt and braces — identical to the original), forwarding
+        # it would mean silently passing through content a signal said was
+        # unsafe, under a label that implies it was made safe. This
+        # shouldn't normally happen given the invariants in scanner.py and
+        # redaction.py (a "sanitize" verdict always has at least one
+        # locatable span; a "redact" action only fires when its pattern
+        # actually matched), but a security tool shouldn't rely on
+        # "shouldn't" — escalate to block instead of forwarding unmodified
+        # flagged content.
+        if combined_action in ("redact", "sanitize") and (
+            sanitized_content is None or sanitized_content == content
+        ):
+            combined_action = "block"
+            reason = f"{reason}; sanitization produced no change, escalated to block"
+            sanitized_content = None
 
         return EnforcementDecision(
             action=combined_action,
@@ -190,4 +272,5 @@ class Enforcer:
             firewall_result=scan_result,
             policy_result=policy_result,
             tool_call=tool_call,
+            sanitized_content=sanitized_content,
         )

@@ -1,5 +1,7 @@
 """Unit tests for PolicyEngine — real enforcement behavior."""
 
+import re
+
 import pytest
 from pydantic import ValidationError
 
@@ -41,6 +43,29 @@ def test_secret_shaped_output_is_redacted():
     )
     assert decision["action"] == "redact"
     assert decision["matched_rule"] == "no-secret-shaped-strings-in-output"
+
+
+def test_redact_decision_includes_the_matched_pattern():
+    """A redact-action decision must expose the actual regex it matched
+    on, not just a "redact" label with nothing a caller can act on."""
+    engine = PolicyEngine.from_file("policies/example-agent.yaml")
+    decision = engine.evaluate(
+        {"name": "write_file", "path": "/sandbox/notes.txt"},
+        output="here is my api_key: sk-abc123",
+    )
+    assert "redact_pattern" in decision
+    pattern = decision["redact_pattern"]
+    assert isinstance(pattern, str)
+    assert re.search(pattern, "here is my api_key: sk-abc123") is not None
+
+
+def test_non_redact_decisions_do_not_carry_a_redact_pattern_key():
+    engine = PolicyEngine.from_file("policies/example-agent.yaml")
+    block_decision = engine.evaluate({"name": "fetch_url", "url": "https://evil.com"})
+    assert "redact_pattern" not in block_decision
+
+    allow_decision = engine.evaluate({"name": "fetch_url", "url": "https://api.partner.com/v1"})
+    assert "redact_pattern" not in allow_decision
 
 
 def test_write_outside_sandbox_is_blocked():
