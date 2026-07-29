@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from promptwall.client import PromptWallClient
 from promptwall.policy.matcher import Condition, evaluate_condition, parse_match_expression
 from promptwall.policy.schema import Policy, Rule
 
@@ -37,6 +38,12 @@ class PolicyEngine:
         policy_path = Path(path)
         with policy_path.open("r", encoding="utf-8") as f:
             raw_policy = yaml.safe_load(f)
+        policy = Policy.model_validate(raw_policy)
+        return cls(policy)
+
+    @classmethod
+    def from_api(cls, client: PromptWallClient, environment: str = "production") -> PolicyEngine:
+        raw_policy = client.fetch_active_policy(environment=environment)
         policy = Policy.model_validate(raw_policy)
         return cls(policy)
 

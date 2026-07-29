@@ -17,7 +17,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
+
+if TYPE_CHECKING:
+    from promptwall.client import PromptWallClient
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -211,6 +214,22 @@ class Enforcer:
         policy = Policy.model_validate(raw_policy)
 
         policy_engine = PolicyEngine(policy)
+
+        if policy.input_firewall is not None:
+            firewall = InputFirewall(
+                mode=policy.input_firewall.mode,
+                sensitivity=policy.input_firewall.sensitivity,
+            )
+        else:
+            firewall = InputFirewall(mode="block", sensitivity="medium")
+
+        return cls(policy_engine, firewall)
+
+    @classmethod
+    def from_api(cls, client: PromptWallClient, environment: str = "production") -> Enforcer:
+        """Build an Enforcer from a remote API policy."""
+        policy_engine = PolicyEngine.from_api(client, environment=environment)
+        policy = policy_engine.policy
 
         if policy.input_firewall is not None:
             firewall = InputFirewall(

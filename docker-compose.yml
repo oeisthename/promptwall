@@ -1,39 +1,28 @@
-services:
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://promptwall:promptwall@db:5432/promptwall
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./policies:/app/policies:ro
+version: '3.8'
 
+services:
   db:
     image: postgres:16-alpine
     environment:
-      - POSTGRES_USER=promptwall
-      - POSTGRES_PASSWORD=promptwall
-      - POSTGRES_DB=promptwall
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: promptwall
+    ports:
+      - "5433:5432"
     volumes:
-      - promptwall_db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U promptwall"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  dashboard:
-    build:
-      context: ./dashboard
+  redis:
+    image: redis:7-alpine
     ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    depends_on:
-      - api
+      - "6379:6379"
 
 volumes:
-  promptwall_db_data:
+  postgres_data:
+    name: promptwallv2_postgres_data
+    external: true
