@@ -50,14 +50,43 @@ class PolicyEngine:
         `tool_call.<field>` (e.g. `tool_call.url`). `output` is referenced
         directly as `output` and represents content the agent is about to
         emit or write.
+
+        When the matched rule's action is "redact" and the condition
+        references a named pattern (e.g. `output contains pattern:NAME`),
+        the decision includes "redact_pattern": the raw regex string for
+        that pattern, so a caller can actually perform the redaction
+        (`re.sub(pattern, ..., output)`) rather than just receiving a
+        "redact" label with no way to act on it. This engine only
+        identifies *what* to redact — applying it, and deciding *when* to
+        apply it relative to other content mutations, is the caller's job
+        (see Enforcer._build_sanitized_content).
         """
         for rule, condition in zip(self.rules, self._conditions, strict=True):
             if evaluate_condition(condition, tool_call, output, self._definitions):
-                return {
+                decision: dict[str, object] = {
                     "action": rule.action,
                     "matched_rule": rule.name,
                     "severity": rule.severity,
                     "tool_call": tool_call,
                 }
+                if rule.action == "redact":
+                    decision["redact_pattern"] = self._redact_pattern_for(condition)
+                return decision
 
         return {"action": "allow", "matched_rule": None, "severity": None, "tool_call": tool_call}
+
+    def _redact_pattern_for(self, condition: Condition) -> str | None:
+        """Resolve the raw regex string a redact-action rule's condition
+        refers to, if it references one (i.e. `contains pattern:NAME`).
+        Returns None if the rule matched on something else — redaction
+        only makes sense for pattern-shaped matches against `output`; a
+        redact-action rule matching on a tool_call field has nothing
+        textual to redact.
+        """
+        if not condition.value.startswith("pattern:"):
+            return None
+        pattern_name = condition.value.split(":", 1)[1]
+        patterns = self._definitions.get("patterns", {})
+        if not isinstance(patterns, dict) or pattern_name not in patterns:
+            return None
+        return str(patterns[pattern_name])

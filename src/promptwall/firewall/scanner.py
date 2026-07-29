@@ -2,32 +2,12 @@ from __future__ import annotations
 
 from promptwall.firewall.models import ScanResult, Signal, Verdict
 from promptwall.firewall.patterns import BUILTIN_PATTERNS
+from promptwall.firewall.redaction import sanitize_content
 from promptwall.firewall.semantic import score_content
-
-_ZERO_WIDTH_CHARS = "\u200b\u200c\u200d\ufeff"
-
-_SEVERITY_THRESHOLDS: dict[str, set[str]] = {
-    "low": {"critical"},
-    "medium": {"critical", "high"},
-    "high": {"critical", "high", "medium"},
-}
+from promptwall.firewall.severity import SEVERITY_THRESHOLDS
+from promptwall.firewall.text_normalize import normalize
 
 _SNIPPET_MAX_LEN = 60
-
-
-def normalize(content: str) -> str:
-    """Strip common evasion tricks before pattern matching.
-
-    - Zero-width Unicode characters can be inserted between letters to
-      break a literal regex match while looking identical when rendered.
-    - Collapsing whitespace defeats spacing tricks like
-      "IGNORE    PREVIOUS   INSTRUCTIONS".
-    - Lowercasing means every pattern only needs to be written once.
-    """
-    for ch in _ZERO_WIDTH_CHARS:
-        content = content.replace(ch, "")
-    content = " ".join(content.split())
-    return content.lower()
 
 
 class InputFirewall:
@@ -39,7 +19,9 @@ class InputFirewall:
 
     Both layers run on every scan; their signals are merged, and the
     final verdict is based on whether any signal survived the configured
-    sensitivity threshold.
+    sensitivity threshold. In sanitize mode, a real redacted copy of the
+    content is computed (see redaction.py) and attached to the result as
+    sanitized_content, ready to forward in place of the original.
     """
 
     def __init__(self, mode: str = "block", sensitivity: str = "medium") -> None:
@@ -47,7 +29,7 @@ class InputFirewall:
         self.sensitivity = sensitivity
 
     def scan(self, content: str) -> ScanResult:
-        active_severities = _SEVERITY_THRESHOLDS[self.sensitivity]
+        active_severities = SEVERITY_THRESHOLDS[self.sensitivity]
         normalized = normalize(content)
 
         signals: list[Signal] = []
@@ -84,4 +66,7 @@ class InputFirewall:
             return ScanResult(verdict="allow", signals=[])
 
         verdict: Verdict = "block" if self.mode == "block" else "sanitize"
-        return ScanResult(verdict=verdict, signals=signals)
+        sanitized_content = (
+            sanitize_content(content, self.sensitivity) if verdict == "sanitize" else None
+        )
+        return ScanResult(verdict=verdict, signals=signals, sanitized_content=sanitized_content)

@@ -22,3 +22,4 @@ class ScanResult(BaseModel):
 
     verdict: Verdict
     signals: list[Signal]
+    sanitized_content: str | None = None
