@@ -41,14 +41,14 @@ class AuditLogger:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs (timestamp)"
             )
-            
+
             # Simple migration logic for existing databases
             with contextlib.suppress(sqlite3.OperationalError):
                 cursor.execute("ALTER TABLE audit_logs ADD COLUMN tokens INTEGER DEFAULT 0")
-            
+
             with contextlib.suppress(sqlite3.OperationalError):
                 cursor.execute("ALTER TABLE audit_logs ADD COLUMN cost REAL DEFAULT 0.0")
-                
+
             conn.commit()
 
     async def log_event(
@@ -106,10 +106,10 @@ class AuditLogger:
         import httpx
 
         from promptwall.cli.config import get_api_key, get_base_url
-        
+
         api_key = get_api_key()
         base_url = get_base_url()
-        
+
         if api_key and base_url:
             try:
                 # Dashboard audit API endpoint
@@ -127,7 +127,7 @@ class AuditLogger:
                         url,
                         json=payload,
                         headers={"Authorization": f"Bearer {api_key}"},
-                        timeout=5.0
+                        timeout=5.0,
                     )
             except Exception:
                 # Silently fail sync if dashboard is unreachable, local SQLite has it

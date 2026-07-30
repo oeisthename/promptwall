@@ -581,11 +581,11 @@ def scan(path: str = typer.Argument(".", help="Directory to scan")) -> None:
 
 @app.command()
 def pentest(
-    target: str = typer.Option(None, help="Proxy URL to test (defaults to local config)")
+    target: str = typer.Option(None, help="Proxy URL to test (defaults to local config)"),
 ) -> None:
     """Run adversarial fuzzing against the proxy to test policies."""
     import httpx
-    
+
     if not target:
         host = get_proxy_host()
         port = get_proxy_port()

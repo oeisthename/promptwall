@@ -85,6 +85,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                     latency = round((time.perf_counter() - start_time) * 1000, 2)
 
                     from promptwall.cli.config import get_daily_budget
+
                     budget = get_daily_budget()
                     if budget is not None:
                         current_spend = audit_logger.get_today_cost()
@@ -117,7 +118,9 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                             decision=decision.action,
                             original_prompt=prompt_str,
                             latency=latency,
-                            matched_rule=decision.rule_name if hasattr(decision, "rule_name") else None,
+                            matched_rule=decision.rule_name
+                            if hasattr(decision, "rule_name")
+                            else None,
                             sanitized_prompt=decision.sanitized_content,
                             score=0.0,
                             tokens=0,
@@ -162,13 +165,15 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                 headers=request_headers,
                 content=request_body,
             )
-            
+
             # Variables for audit log deferred execution
-            is_chat = request.method == "POST" and ("chat/completions" in path or "completions" in path)
-            prompt_for_log = prompt_str if (is_chat and 'prompt_str' in locals()) else ""
-            decision_for_log = decision if (is_chat and 'decision' in locals()) else None
-            latency_for_log = latency if (is_chat and 'latency' in locals()) else 0.0
-            
+            is_chat = request.method == "POST" and (
+                "chat/completions" in path or "completions" in path
+            )
+            prompt_for_log = prompt_str if (is_chat and "prompt_str" in locals()) else ""
+            decision_for_log = decision if (is_chat and "decision" in locals()) else None
+            latency_for_log = latency if (is_chat and "latency" in locals()) else 0.0
+
             if is_stream:
                 if is_chat and prompt_for_log and decision_for_log:
                     est_tokens = len(prompt_for_log) // 4
@@ -177,7 +182,9 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                         decision=decision_for_log.action,
                         original_prompt=prompt_for_log,
                         latency=latency_for_log,
-                        matched_rule=decision_for_log.rule_name if hasattr(decision_for_log, "rule_name") else None,
+                        matched_rule=decision_for_log.rule_name
+                        if hasattr(decision_for_log, "rule_name")
+                        else None,
                         sanitized_prompt=decision_for_log.sanitized_content,
                         score=0.0,
                         tokens=est_tokens,
@@ -197,7 +204,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
             else:
                 upstream_response = await http_client.send(req, stream=False)
                 upstream_response.raise_for_status()
-                
+
                 if is_chat and prompt_for_log and decision_for_log:
                     est_tokens = len(prompt_for_log) // 4
                     act_tokens = est_tokens
@@ -207,13 +214,15 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                             act_tokens = resp_data["usage"]["total_tokens"]
                     except Exception:
                         pass
-                        
+
                     background_tasks.add_task(
                         audit_logger.log_event,
                         decision=decision_for_log.action,
                         original_prompt=prompt_for_log,
                         latency=latency_for_log,
-                        matched_rule=decision_for_log.rule_name if hasattr(decision_for_log, "rule_name") else None,
+                        matched_rule=decision_for_log.rule_name
+                        if hasattr(decision_for_log, "rule_name")
+                        else None,
                         sanitized_prompt=decision_for_log.sanitized_content,
                         score=0.0,
                         tokens=act_tokens,
