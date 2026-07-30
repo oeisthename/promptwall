@@ -394,8 +394,9 @@ def audit(
         console.print("[bold red]No audit logs found![/bold red] Start the proxy first.")
         raise typer.Exit(1)
 
+    from typing import Any
     query = "SELECT timestamp, decision, matched_rule, original_prompt, latency FROM audit_logs"
-    params = []
+    params: list[Any] = []
 
     if action:
         query += " WHERE decision = ?"
@@ -549,8 +550,8 @@ def scan(path: str = typer.Argument(".", help="Directory to scan")) -> None:
     table.add_column("Vulnerability", style="red")
     table.add_column("Snippet")
 
-    for f in findings:
-        table.add_row(f["file"], str(f["line"]), f["type"], f["snippet"])
+    for finding in findings:
+        table.add_row(str(finding["file"]), str(finding["line"]), str(finding["type"]), str(finding["snippet"]))
 
     console.print(table)
 
@@ -649,15 +650,15 @@ def pentest(
                     bypasses += 1
 
             table.add_row(
-                test["name"],
+                str(test["name"]),
                 "Block" if test["should_block"] else "Allow",
                 f"{res.status_code} ({'Block' if actual_block else 'Allow'})",
                 status,
             )
-            results.append({"name": test["name"], "passed": actual_block == test["should_block"]})
+            results.append({"name": str(test["name"]), "passed": actual_block == test["should_block"]})
         except Exception as e:
             table.add_row(
-                test["name"],
+                str(test["name"]),
                 "Block" if test["should_block"] else "Allow",
                 "ERROR",
                 f"[red]{e}[/red]",
