@@ -9,7 +9,14 @@ from fastapi import BackgroundTasks, FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from promptwall.audit import AuditLogger
-from promptwall.cli.config import get_api_key, get_base_url
+from promptwall.cli.config import (
+    get_api_key,
+    get_base_url,
+    get_fallback_api_key,
+    get_fallback_enabled,
+    get_fallback_model,
+    get_fallback_upstream,
+)
 from promptwall.client import PromptWallClient
 from promptwall.enforcer import Enforcer
 
@@ -118,34 +125,76 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
         upstream_url = headers.pop("x-promptwall-upstream", default_upstream)
         url = f"{upstream_url}/{path}"
 
-        if is_stream:
-
-            async def stream_generator() -> AsyncGenerator[bytes, None]:
-                async with http_client.stream(
-                    method=request.method,
-                    url=url,
-                    headers=headers,
-                    content=body_bytes,
-                ) as upstream_response:
-                    async for chunk in upstream_response.aiter_bytes():
-                        yield chunk
-
-            return StreamingResponse(stream_generator(), media_type="text/event-stream")
-        else:
-            upstream_response = await http_client.request(
+        async def _dispatch(
+            target_url: str, request_headers: dict[str, str], request_body: bytes
+        ) -> Response:
+            req = http_client.build_request(
                 method=request.method,
-                url=url,
-                headers=headers,
-                content=body_bytes,
+                url=target_url,
+                headers=request_headers,
+                content=request_body,
             )
-            return Response(
-                content=upstream_response.content,
-                status_code=upstream_response.status_code,
-                headers={
-                    k: v
-                    for k, v in upstream_response.headers.items()
-                    if k.lower() not in ("content-encoding", "content-length", "transfer-encoding")
-                },  # noqa: E501
-            )
+            if is_stream:
+                upstream_response = await http_client.send(req, stream=True)
+                upstream_response.raise_for_status()
+
+                async def stream_generator() -> AsyncGenerator[bytes, None]:
+                    try:
+                        async for chunk in upstream_response.aiter_bytes():
+                            yield chunk
+                    finally:
+                        await upstream_response.aclose()
+
+                return StreamingResponse(stream_generator(), media_type="text/event-stream")
+            else:
+                upstream_response = await http_client.send(req, stream=False)
+                upstream_response.raise_for_status()
+                return Response(
+                    content=upstream_response.content,
+                    status_code=upstream_response.status_code,
+                    headers={
+                        k: v
+                        for k, v in upstream_response.headers.items()
+                        if k.lower()
+                        not in ("content-encoding", "content-length", "transfer-encoding")
+                    },
+                )
+
+        try:
+            return await _dispatch(url, headers, body_bytes)
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
+            fallback_enabled = get_fallback_enabled()
+            fallback_upstream = get_fallback_upstream()
+
+            if not fallback_enabled or not fallback_upstream:
+                logger.warning(f"Upstream request failed: {e}. No fallback configured.")
+                return JSONResponse(status_code=502, content={"error": "Bad Gateway"})
+
+            logger.warning(f"Upstream request failed: {e}. Attempting fallback...")
+
+            fallback_url = f"{fallback_upstream}/{path}"
+            fallback_headers = headers.copy()
+
+            fallback_api_key = get_fallback_api_key()
+            if fallback_api_key:
+                fallback_headers["authorization"] = f"Bearer {fallback_api_key}"
+
+            fallback_model = get_fallback_model()
+            fallback_body_bytes = body_bytes
+            if fallback_model and request.method == "POST":
+                try:
+                    payload = json.loads(body_bytes)
+                    payload["model"] = fallback_model
+                    fallback_body_bytes = json.dumps(payload).encode("utf-8")
+                except json.JSONDecodeError:
+                    pass
+
+            try:
+                return await _dispatch(fallback_url, fallback_headers, fallback_body_bytes)
+            except Exception as fallback_error:
+                logger.error(f"Fallback request also failed: {fallback_error}")
+                return JSONResponse(
+                    status_code=502, content={"error": "Bad Gateway after fallback"}
+                )
 
     return app

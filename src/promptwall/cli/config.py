@@ -44,3 +44,19 @@ def get_proxy_port() -> int:
 
 def get_default_upstream() -> str:
     return str(get_config().get("default_upstream", "https://api.openai.com"))
+
+
+def get_fallback_enabled() -> bool:
+    return bool(get_config().get("fallback_enabled", False))
+
+
+def get_fallback_upstream() -> str | None:
+    return get_config().get("fallback_upstream")
+
+
+def get_fallback_api_key() -> str | None:
+    return get_config().get("fallback_api_key")
+
+
+def get_fallback_model() -> str | None:
+    return get_config().get("fallback_model")
