@@ -395,6 +395,7 @@ def audit(
         raise typer.Exit(1)
 
     from typing import Any
+
     query = "SELECT timestamp, decision, matched_rule, original_prompt, latency FROM audit_logs"
     params: list[Any] = []
 
@@ -551,7 +552,12 @@ def scan(path: str = typer.Argument(".", help="Directory to scan")) -> None:
     table.add_column("Snippet")
 
     for finding in findings:
-        table.add_row(str(finding["file"]), str(finding["line"]), str(finding["type"]), str(finding["snippet"]))
+        table.add_row(
+            str(finding["file"]),
+            str(finding["line"]),
+            str(finding["type"]),
+            str(finding["snippet"]),
+        )
 
     console.print(table)
 
@@ -655,7 +661,9 @@ def pentest(
                 f"{res.status_code} ({'Block' if actual_block else 'Allow'})",
                 status,
             )
-            results.append({"name": str(test["name"]), "passed": actual_block == test["should_block"]})
+            results.append(
+                {"name": str(test["name"]), "passed": actual_block == test["should_block"]}
+            )
         except Exception as e:
             table.add_row(
                 str(test["name"]),
