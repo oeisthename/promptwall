@@ -60,3 +60,8 @@ def get_fallback_api_key() -> str | None:
 
 def get_fallback_model() -> str | None:
     return get_config().get("fallback_model")
+
+
+def get_daily_budget() -> float | None:
+    budget = get_config().get("daily_budget")
+    return float(budget) if budget is not None else None
