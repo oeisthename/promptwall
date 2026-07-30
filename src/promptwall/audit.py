@@ -1,5 +1,6 @@
 """Audit Logging for PromptWall Proxy."""
 
+import contextlib
 import sqlite3
 import uuid
 from datetime import UTC, datetime
@@ -42,14 +43,11 @@ class AuditLogger:
             )
             
             # Simple migration logic for existing databases
-            try:
+            with contextlib.suppress(sqlite3.OperationalError):
                 cursor.execute("ALTER TABLE audit_logs ADD COLUMN tokens INTEGER DEFAULT 0")
-            except sqlite3.OperationalError:
-                pass  # column already exists
-            try:
+            
+            with contextlib.suppress(sqlite3.OperationalError):
                 cursor.execute("ALTER TABLE audit_logs ADD COLUMN cost REAL DEFAULT 0.0")
-            except sqlite3.OperationalError:
-                pass  # column already exists
                 
             conn.commit()
 

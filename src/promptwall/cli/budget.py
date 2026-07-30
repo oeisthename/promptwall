@@ -7,7 +7,6 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 from promptwall.audit import DB_PATH
 from promptwall.cli.config import get_config, get_daily_budget, save_config

@@ -16,6 +16,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from promptwall.api.proxy import create_proxy_app
+from promptwall.cli.budget import budget_app
 from promptwall.cli.config import (
     get_api_key,
     get_base_url,
@@ -29,7 +30,6 @@ from promptwall.cli.config import (
     get_proxy_port,
     save_config,
 )
-from promptwall.cli.budget import budget_app
 from promptwall.cli.replay import replay_app
 from promptwall.client import PromptWallClient
 from promptwall.enforcer import Enforcer

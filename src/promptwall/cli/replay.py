@@ -1,10 +1,9 @@
 """Traffic replay and regression testing command."""
 
-import json
 import sqlite3
-import httpx
 from typing import Annotated
 
+import httpx
 import typer
 from rich.console import Console
 from rich.progress import Progress
