@@ -1,5 +1,8 @@
 """PromptWall Interactive CLI using Typer and Rich."""
 
+import subprocess
+from pathlib import Path
+
 import typer
 import uvicorn
 from rich.console import Console
@@ -271,6 +274,54 @@ def serve(
     app_instance = create_proxy_app(default_upstream=actual_target)
 
     uvicorn.run(app_instance, host=actual_host, port=actual_port, log_level="info")
+
+
+dashboard_app = typer.Typer(help="Manage the PromptWall dashboard")
+app.add_typer(dashboard_app, name="dashboard")
+
+
+@dashboard_app.command("start")
+def dashboard_start() -> None:
+    """Start the Next.js local dashboard orchestrator."""
+    console.print(PROMPTWALL_ART, overflow="crop", no_wrap=True)
+    console.print(
+        Panel.fit(
+            "[bold green]Starting PromptWall Dashboard...[/bold green]\n\n"
+            "[dim]Initializing infrastructure and Next.js...[/dim]",
+            border_style="green",
+        )
+    )
+
+    # Resolve dashboard path (assuming running from source tree for now)
+    package_dir = Path(__file__).resolve().parent.parent.parent.parent
+    dashboard_dir = package_dir / "dashboard"
+    docker_compose_file = package_dir / "docker-compose.yml"
+
+    if not dashboard_dir.exists():
+        console.print(
+            "[bold red]Error:[/bold red] Could not find the dashboard directory. "
+            "Are you running from the source repository?"
+        )
+        raise typer.Exit(1)
+
+    if docker_compose_file.exists():
+        console.print("[cyan]Spinning up Postgres and Redis via Docker...[/cyan]")
+        try:
+            subprocess.run(["docker", "compose", "up", "-d"], cwd=package_dir, check=True)
+        except Exception as e:
+            console.print(f"[bold red]Failed to start docker containers: {e}[/bold red]")
+            console.print("[yellow]Continuing anyway...[/yellow]")
+
+    console.print("[cyan]Starting Next.js Development Server...[/cyan]")
+    try:
+        process = subprocess.Popen(["npm", "run", "dev"], cwd=dashboard_dir)
+        process.wait()
+    except KeyboardInterrupt:
+        console.print("\n[bold]Shutting down dashboard...[/bold]")
+        process.terminate()
+    except Exception as e:
+        console.print(f"[bold red]Failed to start Next.js server: {e}[/bold red]")
+        raise typer.Exit(1) from e
 
 
 def app_entry() -> None:
