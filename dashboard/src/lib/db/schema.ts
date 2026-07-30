@@ -59,6 +59,31 @@ export const auditLogs = pgTable('audit_logs', {
   tokensSaved: integer('tokens_saved').default(0)
 });
 
+export const scans = pgTable('scans', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  timestamp: timestamp('timestamp').defaultNow(),
+  targetDir: varchar('target_dir', { length: 512 }).notNull(),
+  vulnerabilitiesFound: integer('vulnerabilities_found').default(0),
+  details: jsonb('details').default('[]'),
+  environment: varchar('environment', { length: 32 }).default('production').notNull(),
+  organizationId: text('organization_id'),
+  userId: text('user_id')
+});
+
+export const pentests = pgTable('pentests', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  timestamp: timestamp('timestamp').defaultNow(),
+  targetUrl: varchar('target_url', { length: 512 }).notNull(),
+  payloadsTested: integer('payloads_tested').default(0),
+  bypasses: integer('bypasses').default(0),
+  blocks: integer('blocks').default(0),
+  score: real('score').notNull(),
+  details: jsonb('details').default('[]'),
+  environment: varchar('environment', { length: 32 }).default('production').notNull(),
+  organizationId: text('organization_id'),
+  userId: text('user_id')
+});
+
 export const apiKeys = pgTable('api_keys', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
