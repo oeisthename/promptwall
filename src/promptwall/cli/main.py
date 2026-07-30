@@ -1,16 +1,24 @@
 """PromptWall Interactive CLI using Typer and Rich."""
 
 import typer
+import uvicorn
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
-from promptwall.cli.config import get_api_key, get_base_url, get_config, save_config, get_proxy_host, get_proxy_port, get_default_upstream
+from promptwall.api.proxy import create_proxy_app
+from promptwall.cli.config import (
+    get_api_key,
+    get_base_url,
+    get_config,
+    get_default_upstream,
+    get_proxy_host,
+    get_proxy_port,
+    save_config,
+)
 from promptwall.client import PromptWallClient
 from promptwall.enforcer import Enforcer
-from promptwall.api.proxy import create_proxy_app
-import uvicorn
 
 app = typer.Typer(help="PromptWall - Runtime security middleware for AI agents")
 console = Console()
@@ -110,7 +118,7 @@ def status(environment: str = typer.Option("production", "--environment", "-e", 
             policy_data = client.fetch_active_policy(environment=environment)
         except Exception as e:
             console.print(f"[bold red]Failed to connect:[/bold red] {e}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
             
     rules = policy_data.get("rules", [])
     
@@ -152,7 +160,7 @@ def test(environment: str = typer.Option("production", "--environment", "-e", he
             enforcer = Enforcer.from_api(client, environment=environment)
         except Exception as e:
             console.print(f"[bold red]Failed to load enforcer:[/bold red] {e}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from e
             
     console.print(Panel.fit(f"[bold blue]PromptWall Interactive Tester[/bold blue]\nEnvironment: [cyan]{environment}[/cyan]\nType your prompt below or 'exit' to quit.", border_style="blue"))
     

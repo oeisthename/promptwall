@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request, Response
