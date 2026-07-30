@@ -35,12 +35,12 @@ def get_base_url() -> str | None:
 
 
 def get_proxy_host() -> str:
-    return get_config().get("proxy_host", "127.0.0.1")
+    return str(get_config().get("proxy_host", "127.0.0.1"))
 
 
 def get_proxy_port() -> int:
-    return get_config().get("proxy_port", 8000)
+    return int(get_config().get("proxy_port", 8000))
 
 
 def get_default_upstream() -> str:
-    return get_config().get("default_upstream", "https://api.openai.com")
+    return str(get_config().get("default_upstream", "https://api.openai.com"))
