@@ -16,6 +16,10 @@ from promptwall.cli.config import (
     get_base_url,
     get_config,
     get_default_upstream,
+    get_fallback_api_key,
+    get_fallback_enabled,
+    get_fallback_model,
+    get_fallback_upstream,
     get_proxy_host,
     get_proxy_port,
     save_config,
@@ -100,12 +104,55 @@ def init() -> None:
     current_upstream = get_default_upstream()
     default_upstream = Prompt.ask("Default Upstream URL", default=current_upstream)
 
+    current_fallback_enabled = get_fallback_enabled()
+    fallback_enabled_str = Prompt.ask(
+        "Enable a Fallback Provider?",
+        choices=["y", "n"],
+        default="y" if current_fallback_enabled else "n",
+    )
+    fallback_enabled = fallback_enabled_str.lower() == "y"
+
+    fallback_upstream = ""
+    fallback_api_key = ""
+    fallback_model = ""
+
+    if fallback_enabled:
+        current_fallback_upstream = get_fallback_upstream() or ""
+        fallback_upstream = Prompt.ask(
+            "Fallback Upstream URL (e.g. http://localhost:11434/v1)",
+            default=current_fallback_upstream,
+        )
+
+        current_fallback_api_key = get_fallback_api_key() or ""
+        fallback_api_key = Prompt.ask(
+            "Fallback API Key (leave empty for local AIs)",
+            password=True,
+            default=current_fallback_api_key,
+        )
+
+        current_fallback_model = get_fallback_model() or ""
+        fallback_model = Prompt.ask(
+            "Fallback Model Override (leave empty to use original)",
+            default=current_fallback_model,
+        )
+
     config = get_config()
     config["base_url"] = base_url
     config["api_key"] = api_key
     config["proxy_host"] = proxy_host
     config["proxy_port"] = proxy_port
     config["default_upstream"] = default_upstream
+
+    config["fallback_enabled"] = fallback_enabled
+    if fallback_enabled:
+        config["fallback_upstream"] = fallback_upstream
+        config["fallback_api_key"] = fallback_api_key
+        config["fallback_model"] = fallback_model
+    else:
+        config.pop("fallback_upstream", None)
+        config.pop("fallback_api_key", None)
+        config.pop("fallback_model", None)
+
     save_config(config)
 
     console.print("[bold green]✔[/bold green] Configuration saved successfully!")
