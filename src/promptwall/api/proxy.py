@@ -1,17 +1,20 @@
 import json
 import logging
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request, Response
+from fastapi import BackgroundTasks, FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from promptwall.audit import AuditLogger
 from promptwall.cli.config import get_api_key, get_base_url
 from promptwall.client import PromptWallClient
 from promptwall.enforcer import Enforcer
 
 logger = logging.getLogger(__name__)
+audit_logger = AuditLogger()
 
 
 def get_enforcer() -> Enforcer:
@@ -40,7 +43,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
         await http_client.aclose()
 
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-    async def api_proxy(path: str, request: Request) -> Response:
+    async def api_proxy(path: str, request: Request, background_tasks: BackgroundTasks) -> Response:
         try:
             enforcer = get_enforcer()
         except Exception as e:
@@ -70,7 +73,19 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                     prompt_str = extract_prompt_from_messages(messages)
 
                 if prompt_str:
+                    start_time = time.perf_counter()
                     decision = enforcer.enforce(tool_call={"name": "proxy"}, content=prompt_str)
+                    latency = round((time.perf_counter() - start_time) * 1000, 2)
+
+                    background_tasks.add_task(
+                        audit_logger.log_event,
+                        decision=decision.action,
+                        original_prompt=prompt_str,
+                        latency=latency,
+                        matched_rule=decision.rule_name if hasattr(decision, "rule_name") else None,
+                        sanitized_prompt=decision.sanitized_content,
+                        score=0.0,  # Optional score if available
+                    )
 
                     if decision.action in ("block", "require_approval"):
                         return JSONResponse(
