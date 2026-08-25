@@ -67,7 +67,6 @@ def score_content(normalized_content: str) -> SemanticFinding:
     # Evaluate ML Model
     session, tokenizer = _get_ml_components()
     is_ml_injection = False
-    ml_confidence = 0.0
 
     if session and tokenizer:
         import numpy as np  # type: ignore
@@ -96,7 +95,6 @@ def score_content(normalized_content: str) -> SemanticFinding:
         injection_prob = float(probs[1])
         if injection_prob > 0.999999 and "[redacted]" not in normalized_content:
             is_ml_injection = True
-            ml_confidence = injection_prob
             categories.append("ml-prompt-injection")
 
     has_override = "authority-override" in categories
@@ -108,8 +106,7 @@ def score_content(normalized_content: str) -> SemanticFinding:
     elif has_override and has_support:
         severity = "high"
 
-    if is_ml_injection:
-        if not severity:
-            severity = "high"
+    if is_ml_injection and not severity:
+        severity = "high"
 
     return SemanticFinding(matched_categories=tuple(categories), severity=severity)
