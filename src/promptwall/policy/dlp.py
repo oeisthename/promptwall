@@ -119,7 +119,7 @@ class PresidioWrapper:
                 text=text,
                 analyzer_results=analyzer_results,
             )
-            return result.text
+            return str(result.text)
         except Exception as e:
             logger.error("DLP anonymization error: %s", e)
             return text

@@ -5,6 +5,7 @@ import sqlite3
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 CONFIG_DIR = Path.home() / ".promptwall"
 DB_PATH = CONFIG_DIR / "audit.db"
@@ -137,7 +138,7 @@ class AuditLogger:
         # 3. Forward to SIEM integrations
         await self._forward_to_siem(payload)
 
-    async def _forward_to_siem(self, payload: dict) -> None:
+    async def _forward_to_siem(self, payload: dict[str, Any]) -> None:
         if not hasattr(self, "_siem_integrations"):
             self._siem_integrations = []
             from promptwall.cli.config import get_api_key, get_base_url
@@ -159,11 +160,11 @@ class AuditLogger:
 
         import httpx
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient() as http_client:
             for siem in self._siem_integrations:
                 provider = siem.get("provider")
                 endpoint = siem.get("endpoint")
-                siem_key = siem.get("apiKey")
+                siem_key = str(siem.get("apiKey") or "")
                 if not endpoint:
                     continue
 
@@ -171,16 +172,16 @@ class AuditLogger:
                 try:
                     if provider == "datadog":
                         headers["DD-API-KEY"] = siem_key
-                        await client.post(endpoint, json=payload, headers=headers, timeout=2.0)
+                        await http_client.post(endpoint, json=payload, headers=headers, timeout=2.0)
                     elif provider == "splunk":
                         headers["Authorization"] = f"Splunk {siem_key}"
-                        await client.post(
+                        await http_client.post(
                             endpoint, json={"event": payload}, headers=headers, timeout=2.0
                         )
                     elif provider in ("elk", "wazuh"):
                         if siem_key:
                             headers["Authorization"] = f"Bearer {siem_key}"
-                        await client.post(endpoint, json=payload, headers=headers, timeout=2.0)
+                        await http_client.post(endpoint, json=payload, headers=headers, timeout=2.0)
                 except Exception:
                     pass
 

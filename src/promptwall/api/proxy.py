@@ -83,14 +83,12 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                     prompt_str = extract_prompt_from_messages(messages)
 
                 if prompt_str:
-                    if (
-                        getattr(enforcer.policy, "limits", None)
-                        and enforcer.policy.limits.requests_per_minute > 0
-                    ):
+                    limits = enforcer.policy_engine.policy.limits
+                    if limits and limits.requests_per_minute > 0:
                         global _request_times
                         now = time.time()
                         _request_times = [t for t in _request_times if now - t < 60]
-                        if len(_request_times) >= enforcer.policy.limits.requests_per_minute:
+                        if len(_request_times) >= limits.requests_per_minute:
                             background_tasks.add_task(
                                 audit_logger.log_event,
                                 decision="block",
@@ -106,7 +104,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                                 status_code=429,
                                 content={
                                     "error": {
-                                        "message": f"PromptWall Rate Limit Exceeded: {enforcer.policy.limits.requests_per_minute} requests per minute.",
+                                        "message": f"PromptWall Rate Limit Exceeded: {limits.requests_per_minute} requests per minute.",
                                         "type": "rate_limit_exceeded",
                                         "code": "promptwall_blocked",
                                     }

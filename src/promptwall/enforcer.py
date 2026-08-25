@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
     from promptwall.client import PromptWallClient
@@ -175,7 +175,7 @@ def _build_sanitized_content(
         changed = True
 
     if policy_result.get("action") == "redact":
-        dlp_results = policy_result.get("dlp_results")
+        dlp_results = cast(list[Any], policy_result.get("dlp_results"))
         if dlp_results:
             from promptwall.policy.dlp import PresidioWrapper
 
