@@ -28,6 +28,7 @@ export default function ApiKeysPage() {
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -58,6 +59,15 @@ export default function ApiKeysPage() {
       if (res.ok) {
         const data = await res.json();
         setKeys(data);
+      }
+      const { data: org } = await authClient.organization.getFullOrganization();
+      if (org && session?.user) {
+        const currentUserMember = org.members?.find((m: any) => m.userId === session.user.id);
+        const currentRole = currentUserMember?.role || "member";
+        setIsAdmin(currentRole === "admin" || currentRole === "owner");
+      } else {
+        // Personal workspace acts as owner
+        setIsAdmin(!session?.session?.activeOrganizationId);
       }
     } catch (e) {
       toast.error("Failed to fetch API keys");
@@ -188,10 +198,12 @@ export default function ApiKeysPage() {
           </h2>
           <p className="text-muted-foreground mt-2">Manage tokens for your CLI and API access.</p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)} className="bg-white text-black hover:bg-gray-200">
-          <Plus className="mr-2 h-4 w-4" />
-          Create New Key
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setIsDialogOpen(true)} className="bg-white text-black hover:bg-gray-200">
+            <Plus className="mr-2 h-4 w-4" />
+            Create New Key
+          </Button>
+        )}
       </div>
 
       <Card className="glass-card border-white/5">
@@ -256,12 +268,18 @@ export default function ApiKeysPage() {
                     {k.rateLimit} req/min
                   </span>
                   <div className="flex items-center gap-2 mt-2">
-                    <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(k)} className="text-white hover:bg-white/10 h-7 px-2">
-                      <Edit2 className="h-3 w-3 mr-1" /> Edit Limits
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteKey(k.id)} className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 px-2">
-                      <Trash2 className="h-3 w-3 mr-1" /> Revoke
-                    </Button>
+                    {isAdmin ? (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(k)} className="text-white hover:bg-white/10 h-7 px-2">
+                          <Edit2 className="h-3 w-3 mr-1" /> Edit Limits
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteKey(k.id)} className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 px-2">
+                          <Trash2 className="h-3 w-3 mr-1" /> Revoke
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground italic text-[10px]">Read-only access</span>
+                    )}
                   </div>
                 </div>
               </div>

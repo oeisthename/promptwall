@@ -65,12 +65,19 @@ class InputFirewallConfig(BaseModel):
     sensitivity: Literal["low", "medium", "high"] = "medium"
 
 
+class LimitsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requests_per_minute: int = Field(default=0)
+
+
 class Policy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     agent: str
     definitions: Definitions = Field(default_factory=Definitions)
     input_firewall: InputFirewallConfig | None = None
+    limits: LimitsConfig | None = None
     rules: list[Rule] = Field(default_factory=list)
 
     @field_validator("rules")

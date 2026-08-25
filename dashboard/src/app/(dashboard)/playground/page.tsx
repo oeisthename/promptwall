@@ -20,6 +20,12 @@ interface SimulationResult {
 
 export default function PlaygroundPage() {
   const { data: session } = authClient.useSession();
+  const { data: activeOrgData } = authClient.useActiveOrganization();
+  
+  const currentUserMember = activeOrgData?.members?.find((m: any) => m.userId === session?.user?.id);
+  const currentRole = (currentUserMember?.role as string) || "member";
+  const isAdmin = currentRole === "admin" || currentRole === "owner" || (!session?.session?.activeOrganizationId);
+  const canTest = isAdmin || currentRole === "developer";
   
   const [prompt, setPrompt] = useState("");
   const [environment, setEnvironment] = useState("production");
@@ -79,10 +85,16 @@ export default function PlaygroundPage() {
               <SelectItem value="development">Development</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={handleSimulate} disabled={isSimulating} className="bg-white text-black hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-            {isSimulating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-            Run Simulation
-          </Button>
+          {canTest ? (
+            <Button onClick={handleSimulate} disabled={isSimulating} className="bg-white text-black hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+              {isSimulating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+              Run Simulation
+            </Button>
+          ) : (
+            <Button disabled className="bg-white/10 text-white/50 cursor-not-allowed">
+              Read Only
+            </Button>
+          )}
         </div>
       </div>
 
@@ -98,6 +110,7 @@ export default function PlaygroundPage() {
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Paste the prompt your user or application would send to the LLM..."
               className="w-full h-full min-h-[400px] bg-transparent border-0 resize-none focus-visible:ring-0 text-white p-6 leading-relaxed rounded-none"
+              disabled={!canTest}
             />
           </CardContent>
         </Card>

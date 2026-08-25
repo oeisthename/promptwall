@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import * as yaml from 'js-yaml';
+import { requireRole } from "@/lib/rbac";
 
 export async function GET(req: Request) {
   try {
@@ -32,10 +33,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) return new NextResponse("Unauthorized", { status: 401 });
-    
-    const orgId = session.session.activeOrganizationId;
+    const authCheck = await requireRole(["admin", "owner", "developer"]);
+    if (!authCheck.isAuthorized) {
+      return authCheck.response;
+    }
+    const { session, orgId } = authCheck;
     const userId = session.user.id;
 
     const body = await req.json();
@@ -115,10 +117,11 @@ export async function DELETE(req: Request) {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
 
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session) return new NextResponse("Unauthorized", { status: 401 });
-    
-    const orgId = session.session.activeOrganizationId;
+    const authCheck = await requireRole(["admin", "owner", "developer"]);
+    if (!authCheck.isAuthorized) {
+      return authCheck.response;
+    }
+    const { session, orgId } = authCheck;
     const userId = session.user.id;
 
     if (!id) {

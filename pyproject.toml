@@ -48,6 +48,7 @@ dependencies = [
     "typer>=0.12.0",
     "rich>=13.0.0",
     "httpx>=0.27",
+    "nodeenv>=1.9",
 ]
 
 [project.optional-dependencies]
@@ -62,6 +63,16 @@ dev = [
 ]
 postgres = [
     "psycopg2-binary>=2.9",
+]
+dlp = [
+    "presidio-analyzer>=2.2.35",
+    "presidio-anonymizer>=2.2.35",
+    "spacy>=3.7.0",
+]
+ml = [
+    "onnxruntime>=1.17",
+    "tokenizers>=0.15",
+    "huggingface-hub>=0.23",
 ]
 
 [project.scripts]
@@ -87,3 +98,13 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
+
+[tool.hatch.build]
+ignore-vcs = true
+include = [
+  "src/promptwall",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/promptwall"]
+exclude = []

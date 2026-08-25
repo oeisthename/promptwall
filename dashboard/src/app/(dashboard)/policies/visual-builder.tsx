@@ -20,10 +20,12 @@ interface PolicyDoc {
 
 export function VisualBuilder({ 
   yamlContent, 
-  onChange 
+  onChange,
+  readOnly = false
 }: { 
   yamlContent: string; 
   onChange: (yaml: string) => void;
+  readOnly?: boolean;
 }) {
   const [doc, setDoc] = useState<PolicyDoc | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,9 +93,11 @@ export function VisualBuilder({
           <h3 className="text-white font-medium text-lg">Policy Rules</h3>
           <p className="text-sm text-muted-foreground">Visually build your firewall rules. Changes sync automatically to YAML.</p>
         </div>
-        <Button onClick={addRule} size="sm" className="bg-white text-black hover:bg-gray-200">
-          <Plus className="h-4 w-4 mr-2" /> Add Rule
-        </Button>
+        {!readOnly && (
+          <Button onClick={addRule} size="sm" className="bg-white text-black hover:bg-gray-200">
+            <Plus className="h-4 w-4 mr-2" /> Add Rule
+          </Button>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -103,12 +107,14 @@ export function VisualBuilder({
           </div>
         ) : (
           doc.policies.map((rule, idx) => (
-            <div key={idx} className="bg-black/40 border border-white/10 rounded-lg p-4 flex flex-col gap-4 relative group">
-              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => removeRule(idx)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+            <div key={idx} className={`bg-black/40 border border-white/10 rounded-lg p-4 flex flex-col gap-4 relative group ${readOnly ? 'opacity-80' : ''}`}>
+              {!readOnly && (
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => removeRule(idx)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-4 mr-8">
                 <div className="space-y-2 col-span-2 md:col-span-1">
@@ -118,11 +124,12 @@ export function VisualBuilder({
                     onChange={(e) => updateRule(idx, "name", e.target.value)}
                     className="bg-black/60 border-white/10 text-white h-9"
                     placeholder="e.g. Block PII"
+                    disabled={readOnly}
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Action</label>
-                  <Select value={rule.action || "block"} onValueChange={(v) => v && updateRule(idx, "action", v)}>
+                  <Select value={rule.action || "block"} onValueChange={(v) => v && updateRule(idx, "action", v)} disabled={readOnly}>
                     <SelectTrigger className="bg-black/60 border-white/10 text-white h-9">
                       <SelectValue />
                     </SelectTrigger>
@@ -136,13 +143,14 @@ export function VisualBuilder({
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Matcher Type</label>
-                  <Select value={rule.type || "regex"} onValueChange={(v) => v && updateRule(idx, "type", v)}>
+                  <Select value={rule.type || "regex"} onValueChange={(v) => v && updateRule(idx, "type", v)} disabled={readOnly}>
                     <SelectTrigger className="bg-black/60 border-white/10 text-white h-9">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-black border-white/10 text-white">
                       <SelectItem value="regex">Regular Expression</SelectItem>
                       <SelectItem value="exact">Exact String Match</SelectItem>
+                      <SelectItem value="dlp">Native DLP (Presidio)</SelectItem>
                       <SelectItem value="llm_eval">LLM Evaluation</SelectItem>
                     </SelectContent>
                   </Select>
@@ -153,7 +161,8 @@ export function VisualBuilder({
                     value={rule.match || ""} 
                     onChange={(e) => updateRule(idx, "match", e.target.value)}
                     className="bg-black/60 border-white/10 text-white h-9 font-mono text-sm"
-                    placeholder="e.g. (?i)(password|secret)"
+                    placeholder={rule.type === "dlp" ? "e.g. CREDIT_CARD, EMAIL_ADDRESS" : "e.g. (?i)(password|secret)"}
+                    disabled={readOnly}
                   />
                 </div>
               </div>

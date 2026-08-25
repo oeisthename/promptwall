@@ -58,8 +58,9 @@ export default function PoliciesPage() {
   const { data: session } = authClient.useSession();
   const { data: activeOrgData } = authClient.useActiveOrganization();
   const currentUserMember = activeOrgData?.members?.find((m: any) => m.userId === session?.user?.id);
-  const currentRole = currentUserMember?.role || "member";
-  const isAdmin = currentRole === "admin" || currentRole === "owner";
+  const currentRole = (currentUserMember?.role as string) || "member";
+  const isAdmin = currentRole === "admin" || currentRole === "owner" || (!session?.session?.activeOrganizationId);
+  const canEdit = isAdmin || currentRole === "developer";
 
   const fetchVersions = async (policyId: string) => {
     try {
@@ -308,32 +309,38 @@ export default function PoliciesPage() {
           <p className="text-muted-foreground text-sm">Manage your security guardrails and AI firewall rules.</p>
         </div>
 
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-white text-black hover:bg-gray-200 h-10 px-4 py-2">
-            <Plus className="mr-2 h-4 w-4" />
-            New Policy
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md bg-black border border-white/10 text-white">
-            <DialogHeader>
-              <DialogTitle>Create New Policy</DialogTitle>
-              <DialogDescription className="text-muted-foreground">
-                Give your new policy file a name.
-              </DialogDescription>
-            </DialogHeader>
-            <Input
-              placeholder="e.g. Finance App Guardrails"
-              value={newPolicyName}
-              onChange={(e) => setNewPolicyName(e.target.value)}
-              className="bg-black/40 border-white/10 text-white"
-            />
-            <DialogFooter>
-              <Button className="bg-white text-black hover:bg-gray-200" onClick={handleCreatePolicy} disabled={isSaving}>
-                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {canEdit ? (
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-white text-black hover:bg-gray-200 h-10 px-4 py-2">
+              <Plus className="mr-2 h-4 w-4" />
+              New Policy
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md bg-black border border-white/10 text-white">
+              <DialogHeader>
+                <DialogTitle>Create New Policy</DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  Give your new policy file a name.
+                </DialogDescription>
+              </DialogHeader>
+              <Input
+                placeholder="e.g. Finance App Guardrails"
+                value={newPolicyName}
+                onChange={(e) => setNewPolicyName(e.target.value)}
+                className="bg-black/40 border-white/10 text-white"
+              />
+              <DialogFooter>
+                <Button className="bg-white text-black hover:bg-gray-200" onClick={handleCreatePolicy} disabled={isSaving}>
+                  {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <Button disabled className="bg-white/10 text-white/50 cursor-not-allowed">
+            Read Only
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-8 bg-black/20 border border-white/5 rounded-lg p-3">
@@ -542,10 +549,12 @@ export default function PoliciesPage() {
             </Dialog>
           )}
 
-          <Button onClick={handleSave} disabled={isSaving || isLoading || activePolicyId === "new"} className="bg-white text-black hover:bg-gray-200 h-9 px-6">
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Changes
-          </Button>
+          {canEdit && (
+            <Button onClick={handleSave} disabled={isSaving || isLoading || activePolicyId === "new"} className="bg-white text-black hover:bg-gray-200 h-9 px-6">
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Save Changes
+            </Button>
+          )}
         </div>
       </div>
       
@@ -586,7 +595,7 @@ export default function PoliciesPage() {
                 </div>
               ) : editorMode === "visual" ? (
                 <div className="w-full h-full p-4 bg-[#0a0a0a]">
-                  <VisualBuilder yamlContent={yamlContent} onChange={setYamlContent} />
+                  <VisualBuilder yamlContent={yamlContent} onChange={canEdit ? setYamlContent : () => {}} readOnly={!canEdit} />
                 </div>
               ) : (
                 <Editor
@@ -602,6 +611,7 @@ export default function PoliciesPage() {
                     scrollBeyondLastLine: false,
                     smoothScrolling: true,
                     cursorBlinking: "smooth",
+                    readOnly: !canEdit,
                   }}
                 />
               )}
@@ -665,18 +675,20 @@ export default function PoliciesPage() {
                       <motion.div 
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className={`rounded-lg border p-4 mt-4 ${simResult.decision === 'block' ? 'border-red-500/20 bg-red-500/5' : simResult.decision === 'error' ? 'border-orange-500/20 bg-orange-500/5' : 'border-emerald-500/20 bg-emerald-500/5'}`}
+                        className={`rounded-lg border p-4 mt-4 ${simResult.decision === 'block' ? 'border-red-500/20 bg-red-500/5' : simResult.decision === 'error' ? 'border-orange-500/20 bg-orange-500/5' : simResult.decision === 'redact' ? 'border-yellow-500/20 bg-yellow-500/5' : 'border-emerald-500/20 bg-emerald-500/5'}`}
                       >
                         <div className="flex items-center gap-2 mb-2">
                           {simResult.decision === 'block' ? (
                             <ShieldAlert className="h-5 w-5 text-red-500" />
                           ) : simResult.decision === 'error' ? (
                              <ShieldAlert className="h-5 w-5 text-orange-500" />
+                          ) : simResult.decision === 'redact' ? (
+                             <ShieldAlert className="h-5 w-5 text-yellow-500" />
                           ) : (
                             <ShieldCheck className="h-5 w-5 text-emerald-500" />
                           )}
-                          <h4 className={`font-medium ${simResult.decision === 'block' ? 'text-red-500' : simResult.decision === 'error' ? 'text-orange-500' : 'text-emerald-500'}`}>
-                            {simResult.decision === 'block' ? 'Access Blocked' : simResult.decision === 'error' ? 'Invalid Policy' : 'Access Allowed'}
+                          <h4 className={`font-medium ${simResult.decision === 'block' ? 'text-red-500' : simResult.decision === 'error' ? 'text-orange-500' : simResult.decision === 'redact' ? 'text-yellow-500' : 'text-emerald-500'}`}>
+                            {simResult.decision === 'block' ? 'Access Blocked' : simResult.decision === 'error' ? 'Invalid Policy' : simResult.decision === 'redact' ? 'Redacted' : 'Access Allowed'}
                           </h4>
                         </div>
                         <p className="text-sm text-muted-foreground mb-3">{simResult.reason}</p>
@@ -773,7 +785,7 @@ export default function PoliciesPage() {
           </div>
           <DialogFooter className="mt-4">
             <Button variant="outline" className="border-white/10 text-white" onClick={() => setViewerOpen(false)}>Close</Button>
-            <Button className="bg-white text-black hover:bg-gray-200" onClick={() => {
+            <Button className="bg-white text-black hover:bg-gray-200" disabled={!canEdit} onClick={() => {
               setYamlContent(viewerContent);
               setViewerOpen(false);
               toast.success("Version restored to editor! Click Save Changes to apply.");

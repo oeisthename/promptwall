@@ -4,24 +4,18 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
+import { requireRole } from "@/lib/rbac";
 
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const authCheck = await requireRole(["admin", "owner"]);
+    if (!authCheck.isAuthorized) {
+      return authCheck.response;
     }
-
-    const orgId = session.session.activeOrganizationId;
-    if (!orgId) {
-      return new NextResponse("Organization required", { status: 400 });
-    }
+    const { orgId } = authCheck;
 
     const { id } = await params;
 
@@ -31,7 +25,7 @@ export async function DELETE(
 
     // Ensure the key belongs to the current organization before deleting
     const [deleted] = await db.delete(apiKeys)
-      .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, orgId)))
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, orgId as string)))
       .returning();
 
     if (!deleted) {
@@ -50,18 +44,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const authCheck = await requireRole(["admin", "owner"]);
+    if (!authCheck.isAuthorized) {
+      return authCheck.response;
     }
-
-    const orgId = session.session.activeOrganizationId;
-    if (!orgId) {
-      return new NextResponse("Organization required", { status: 400 });
-    }
+    const { orgId } = authCheck;
 
     const { id } = await params;
 
@@ -77,7 +64,7 @@ export async function PATCH(
         rateLimit: rateLimit ? parseInt(rateLimit) : null,
         budget: budget ? parseInt(budget) : null
       })
-      .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, orgId)))
+      .where(and(eq(apiKeys.id, id), eq(apiKeys.organizationId, orgId as string)))
       .returning();
 
     if (!updated) {

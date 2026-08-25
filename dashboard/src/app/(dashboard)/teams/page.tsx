@@ -96,7 +96,7 @@ export default function TeamsPage() {
     try {
       const { data, error } = await authClient.organization.inviteMember({
         email: inviteEmail,
-        role: inviteRole as "member" | "admin"
+        role: inviteRole as any
       });
       if (error) throw error;
       
@@ -122,7 +122,7 @@ export default function TeamsPage() {
     setTimeout(() => setHasCopied(false), 2000);
   };
 
-  const handleUpdateRole = async (memberId: string, newRole: "admin" | "member") => {
+  const handleUpdateRole = async (memberId: string, newRole: "admin" | "member" | "developer") => {
     try {
       const { error } = await authClient.organization.updateMemberRole({
         memberId,
@@ -267,16 +267,22 @@ export default function TeamsPage() {
                               <MoreHorizontal className="h-4 w-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-[#0a0a0a] border-white/10 text-white">
-                              {member.role === 'member' && (
+                              {member.role !== 'admin' && member.role !== 'owner' && (
                                 <DropdownMenuItem onClick={() => handleUpdateRole(member.id, 'admin')} className="cursor-pointer hover:bg-white/10 focus:bg-white/10">
                                   <ShieldAlert className="mr-2 h-4 w-4" />
                                   Make Admin
                                 </DropdownMenuItem>
                               )}
-                              {member.role === 'admin' && (
+                              {member.role !== 'developer' && member.role !== 'owner' && (
+                                <DropdownMenuItem onClick={() => handleUpdateRole(member.id, 'developer')} className="cursor-pointer hover:bg-white/10 focus:bg-white/10">
+                                  <Users className="mr-2 h-4 w-4" />
+                                  Make Developer
+                                </DropdownMenuItem>
+                              )}
+                              {member.role !== 'member' && member.role !== 'owner' && (
                                 <DropdownMenuItem onClick={() => handleUpdateRole(member.id, 'member')} className="cursor-pointer hover:bg-white/10 focus:bg-white/10">
                                   <Users className="mr-2 h-4 w-4" />
-                                  Make Member
+                                  Make Auditor (Member)
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem onClick={() => handleRemoveMember(member.user.email)} className="cursor-pointer text-red-400 hover:bg-red-500/10 focus:bg-red-500/10 focus:text-red-400">
@@ -347,7 +353,8 @@ export default function TeamsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-[#0a0a0a] border-white/10 text-white">
-                        <SelectItem value="member">Member (View Only)</SelectItem>
+                        <SelectItem value="member">Auditor (Read Only)</SelectItem>
+                        <SelectItem value="developer">Developer (Manage Policies)</SelectItem>
                         <SelectItem value="admin">Admin (Full Access)</SelectItem>
                       </SelectContent>
                     </Select>

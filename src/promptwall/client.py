@@ -44,6 +44,12 @@ class PromptWallClient:
             self._request(f"/api/policies/active?environment={environment}"),
         )
 
+    def fetch_siem_integrations(self) -> list[dict[str, Any]]:
+        return cast(
+            list[dict[str, Any]],
+            self._request("/api/settings/siem"),
+        )
+
     def send_audit_event(self, event: dict[str, Any]) -> None:
         with contextlib.suppress(Exception):
             self._request("/api/audit", method="POST", payload=event)
