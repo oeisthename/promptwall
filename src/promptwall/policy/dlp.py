@@ -34,9 +34,9 @@ class PresidioWrapper:
             return
 
         try:
-            from presidio_analyzer import AnalyzerEngine
-            from presidio_analyzer.nlp_engine import NlpEngineProvider
-            from presidio_anonymizer import AnonymizerEngine
+            from presidio_analyzer import AnalyzerEngine  # type: ignore
+            from presidio_analyzer.nlp_engine import NlpEngineProvider  # type: ignore
+            from presidio_anonymizer import AnonymizerEngine  # type: ignore
 
             # Configure multi-language support (English and generic multi-language)
             configuration = {
@@ -92,7 +92,7 @@ class PresidioWrapper:
             res_xx = self._analyzer.analyze(text=text, entities=entities, language="xx")
             results.extend(res_xx)
 
-        from presidio_analyzer.analyzer_engine import AnalyzerEngine
+        from presidio_analyzer.analyzer_engine import AnalyzerEngine  # type: ignore
 
         # Deduplicate overlapping spans
         # The analyzer_engine has a helper function _remove_duplicates, but it's private in some versions

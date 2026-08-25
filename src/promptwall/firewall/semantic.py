@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 Severity = Literal["high", "critical"]
 
@@ -30,13 +30,13 @@ _ONNX_SESSION = None
 _TOKENIZER = None
 
 
-def _get_ml_components():
+def _get_ml_components() -> tuple[Any, Any]:
     global _ONNX_SESSION, _TOKENIZER
     if _ONNX_SESSION is None or _TOKENIZER is None:
         try:
-            import onnxruntime as ort
-            from huggingface_hub import hf_hub_download
-            from tokenizers import Tokenizer
+            import onnxruntime as ort  # type: ignore
+            from huggingface_hub import hf_hub_download  # type: ignore
+            from tokenizers import Tokenizer  # type: ignore
 
             repo_id = "protectai/deberta-v3-base-prompt-injection-v2"
             onnx_path = hf_hub_download(repo_id=repo_id, filename="onnx/model.onnx")
@@ -70,7 +70,7 @@ def score_content(normalized_content: str) -> SemanticFinding:
     ml_confidence = 0.0
 
     if session and tokenizer:
-        import numpy as np
+        import numpy as np  # type: ignore
 
         encoding = tokenizer.encode(normalized_content)
         input_ids = np.array([encoding.ids], dtype=np.int64)
