@@ -5,6 +5,7 @@ Provides a lazy-loaded, multi-language DLP engine.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -88,21 +89,17 @@ class PresidioWrapper:
         except Exception as e:
             logger.debug("DLP analysis error (en): %s", e)
             
-        try:
+        with contextlib.suppress(Exception):
             res_xx = self._analyzer.analyze(text=text, entities=entities, language="xx")
             results.extend(res_xx)
-        except Exception as e:
-            pass # xx might not be available
 
         from presidio_analyzer.analyzer_engine import AnalyzerEngine
         # Deduplicate overlapping spans
         # The analyzer_engine has a helper function _remove_duplicates, but it's private in some versions
         # Let's just return results, Presidio usually handles overlaps well on anonymize step,
         # or we can write a simple deduplicator. The _remove_duplicates is sometimes available.
-        try:
+        with contextlib.suppress(Exception):
             results = AnalyzerEngine.remove_duplicates_results(results) if hasattr(AnalyzerEngine, "remove_duplicates_results") else results
-        except Exception:
-            pass
             
         return results
 

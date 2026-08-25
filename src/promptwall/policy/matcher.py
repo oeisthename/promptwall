@@ -110,7 +110,7 @@ def evaluate_condition(
                 # We stash the results directly onto the condition object temporarily
                 # so the engine can pick them up. This is a bit of a hack but avoids
                 # changing the evaluate_condition signature.
-                setattr(condition, "_dlp_results", results)
+                condition._dlp_results = results
             return found if op == "contains" else not found
         elif is_pattern:
             pattern = _resolve_pattern(definitions, condition.value.split(":", 1)[1])

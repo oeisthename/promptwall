@@ -341,17 +341,18 @@ app.add_typer(dlp_app, name="dlp")
 @dlp_app.command("install")
 def dlp_install() -> None:
     """Download the required NLP models for Presidio Native DLP."""
-    import subprocess
     import sys
     
     console.print("[cyan]Installing NLP models for Native DLP...[/cyan]")
     console.print("[dim]This will download the English (en_core_web_sm) and Multi-language (xx_ent_wiki_sm) models.[/dim]")
     
     try:
-        import spacy
+        import importlib.util
+        if importlib.util.find_spec("spacy") is None:
+            raise ImportError
     except ImportError:
         console.print("[bold red]SpaCy is not installed! Run pip install promptwall\\[dlp] first.[/bold red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     try:
         console.print("Downloading en_core_web_sm (English)...")
@@ -361,7 +362,7 @@ def dlp_install() -> None:
         console.print("[bold green]✔[/bold green] NLP models installed successfully! Native DLP is ready.")
     except Exception as e:
         console.print(f"[bold red]Failed to install models: {e}[/bold red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 @dashboard_app.command("start")
@@ -369,8 +370,6 @@ def dashboard_start() -> None:
     """Start the Next.js local dashboard orchestrator."""
     import shutil
     import sys
-    import subprocess
-    from pathlib import Path
     
     console.print(PROMPTWALL_ART, overflow="crop", no_wrap=True)
     console.print(
@@ -427,7 +426,7 @@ def dashboard_start() -> None:
                     local_schema.write_text(source_schema.read_text())
                     console.print("[dim]Applying database schema if empty...[/dim]")
                     # We run it ignoring errors in case tables already exist
-                    subprocess.run(f"cat schema.sql | docker compose exec -T db psql -U postgres -d promptwall", cwd=promptwall_home, shell=True, capture_output=True)
+                    subprocess.run("cat schema.sql | docker compose exec -T db psql -U postgres -d promptwall", cwd=promptwall_home, shell=True, capture_output=True)
             except Exception as e:
                 console.print(f"[bold red]Failed to start docker containers: {e}[/bold red]")
                 console.print("[yellow]Continuing anyway...[/yellow]")
@@ -447,7 +446,7 @@ def dashboard_start() -> None:
                 subprocess.run([sys.executable, "-m", "nodeenv", str(env_dir)], check=True)
             except Exception as e:
                 console.print(f"[bold red]Failed to install Node.js via nodeenv: {e}[/bold red]")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
         node_bin = str(env_dir / "bin" / "node")
 
     # Determine command based on whether bundled dashboard exists
@@ -484,7 +483,7 @@ def dashboard_start() -> None:
             f.write("REDIS_URL=redis://localhost:6379\n")
     
     # Load dashboard environment variables
-    with open(dashboard_env_file, "r") as f:
+    with open(dashboard_env_file) as f:
         for line in f:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
