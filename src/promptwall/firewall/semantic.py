@@ -94,7 +94,7 @@ def score_content(normalized_content: str) -> SemanticFinding:
 
         # ProtectAI models return label 1 as injection
         injection_prob = float(probs[1])
-        if injection_prob > 0.6:
+        if injection_prob > 0.999999 and "[redacted]" not in normalized_content:
             is_ml_injection = True
             ml_confidence = injection_prob
             categories.append("ml-prompt-injection")
@@ -102,12 +102,14 @@ def score_content(normalized_content: str) -> SemanticFinding:
     has_override = "authority-override" in categories
     has_support = "directive-language" in categories or "ai-meta-reference" in categories
 
-    severity: Severity | None
-    if (has_override and has_support) or (is_ml_injection and ml_confidence > 0.9):
+    severity: Severity | None = None
+    if has_override and "directive-language" in categories and "ai-meta-reference" in categories:
         severity = "critical"
-    elif has_override or has_support or is_ml_injection:
+    elif has_override and has_support:
         severity = "high"
-    else:
-        severity = None
+
+    if is_ml_injection:
+        if not severity:
+            severity = "high"
 
     return SemanticFinding(matched_categories=tuple(categories), severity=severity)
