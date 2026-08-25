@@ -83,7 +83,10 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                     prompt_str = extract_prompt_from_messages(messages)
 
                 if prompt_str:
-                    if getattr(enforcer.policy, "limits", None) and enforcer.policy.limits.requests_per_minute > 0:
+                    if (
+                        getattr(enforcer.policy, "limits", None)
+                        and enforcer.policy.limits.requests_per_minute > 0
+                    ):
                         global _request_times
                         now = time.time()
                         _request_times = [t for t in _request_times if now - t < 60]

@@ -103,6 +103,7 @@ def evaluate_condition(
             entities = condition.value.split(":", 1)[1].split(",")
             entities = [e.strip() for e in entities if e.strip()]
             from promptwall.policy.dlp import PresidioWrapper
+
             dlp_wrapper = PresidioWrapper.get_instance()
             results = dlp_wrapper.analyze(field_str, entities)
             found = len(results) > 0

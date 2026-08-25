@@ -141,11 +141,13 @@ class AuditLogger:
         if not hasattr(self, "_siem_integrations"):
             self._siem_integrations = []
             from promptwall.cli.config import get_api_key, get_base_url
+
             api_key = get_api_key()
             base_url = get_base_url()
             if api_key and base_url:
                 try:
                     from promptwall.client import PromptWallClient
+
                     client = PromptWallClient(api_key=api_key, base_url=base_url)
                     integrations = client.fetch_siem_integrations()
                     self._siem_integrations = [i for i in integrations if i.get("enabled")]
@@ -156,6 +158,7 @@ class AuditLogger:
             return
 
         import httpx
+
         async with httpx.AsyncClient() as client:
             for siem in self._siem_integrations:
                 provider = siem.get("provider")
@@ -171,7 +174,9 @@ class AuditLogger:
                         await client.post(endpoint, json=payload, headers=headers, timeout=2.0)
                     elif provider == "splunk":
                         headers["Authorization"] = f"Splunk {siem_key}"
-                        await client.post(endpoint, json={"event": payload}, headers=headers, timeout=2.0)
+                        await client.post(
+                            endpoint, json={"event": payload}, headers=headers, timeout=2.0
+                        )
                     elif provider in ("elk", "wazuh"):
                         if siem_key:
                             headers["Authorization"] = f"Bearer {siem_key}"

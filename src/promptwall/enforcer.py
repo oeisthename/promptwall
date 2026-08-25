@@ -178,10 +178,11 @@ def _build_sanitized_content(
         dlp_results = policy_result.get("dlp_results")
         if dlp_results:
             from promptwall.policy.dlp import PresidioWrapper
+
             redacted = PresidioWrapper.get_instance().anonymize(mutated, dlp_results)
         else:
             redacted = _apply_policy_redaction(mutated, policy_result)
-        
+
         if redacted != mutated:
             changed = True
         mutated = redacted
