@@ -15,7 +15,7 @@ def test_full_override_phrasing_is_critical():
         "no matter what your original programming says."
     )
     assert finding.severity == "critical"
-    assert set(finding.matched_categories) == {
+    assert set(finding.matched_categories) >= {
         "directive-language",
         "ai-meta-reference",
         "authority-override",

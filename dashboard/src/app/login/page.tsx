@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShieldCheck, Mail, Loader2 } from "lucide-react";
+import { ShieldCheck, Mail, Loader2, AlertCircle, KeyRound } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function LoginPage() {
@@ -18,10 +18,14 @@ export default function LoginPage() {
   const [isGithubLoading, setIsGithubLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMsg("");
     try {
       if (isSignUp) {
         const { data, error } = await authClient.signUp.email({
@@ -29,16 +33,54 @@ export default function LoginPage() {
           email,
           password,
         });
-        if (data) router.push("/");
-        else console.error(error);
+        if (data) {
+          router.push("/");
+        } else {
+          if (error?.message?.toLowerCase().includes("already exists") || error?.code === "USER_ALREADY_EXISTS") {
+            setErrorMsg("this email has already an acount");
+          } else {
+            setErrorMsg(error?.message || "An error occurred during sign up");
+          }
+        }
       } else {
         const { data, error } = await authClient.signIn.email({
           email,
           password,
         });
-        if (data) router.push("/");
-        else console.error(error);
+        if (data && 'twoFactorRedirect' in data && !!data.twoFactorRedirect) {
+          setRequires2FA(true);
+        } else if (data) {
+          router.push("/");
+        } else {
+          if (error?.message?.toLowerCase().includes("invalid") || error?.code === "INVALID_EMAIL_OR_PASSWORD") {
+            setErrorMsg("wrong credentials");
+          } else {
+            setErrorMsg(error?.message || "wrong credentials");
+          }
+        }
       }
+    } catch (err) {
+      setErrorMsg("An unexpected error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerify2FA = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg("");
+    try {
+      const { data, error } = await authClient.twoFactor.verifyTotp({
+        code: totpCode,
+      });
+      if (data) {
+        router.push("/");
+      } else {
+        setErrorMsg(error?.message || "Invalid authentication code");
+      }
+    } catch (err) {
+      setErrorMsg("An unexpected error occurred");
     } finally {
       setIsLoading(false);
     }
@@ -95,11 +137,15 @@ export default function LoginPage() {
             </motion.div>
             <CardTitle className="text-3xl font-medium tracking-tight text-white">PromptWall</CardTitle>
             <CardDescription className="text-muted-foreground/80 text-sm">
-              {isSignUp ? "Create your enterprise account" : "Sign in to your workspace"}
+              {requires2FA 
+                ? "Two-factor authentication required" 
+                : isSignUp 
+                  ? "Create your enterprise account" 
+                  : "Sign in to your workspace"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 px-8">
-            <div className="grid grid-cols-2 gap-3">
+            {/* <div className="grid grid-cols-2 gap-3">
               <Button 
                 variant="outline" 
                 className="w-full bg-white/5 border-white/10 hover:bg-white/10 text-white font-normal" 
@@ -152,11 +198,24 @@ export default function LoginPage() {
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-[#0a0a0a] px-2 text-muted-foreground">Or continue with email</span>
               </div>
-            </div>
+            </div> */}
 
-            <form onSubmit={handleEmailAuth} className="space-y-4">
-              {isSignUp && (
-                <motion.div 
+            {errorMsg && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-destructive/15 text-destructive text-sm p-3 rounded-md flex items-start gap-2 border border-destructive/20"
+              >
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <p>{errorMsg}</p>
+              </motion.div>
+            )}
+
+            {!requires2FA ? (
+              <>
+                <form onSubmit={handleEmailAuth} className="space-y-4">
+                {isSignUp && (
+                  <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   className="space-y-2"
@@ -212,12 +271,61 @@ export default function LoginPage() {
                 {isSignUp ? "Already have an account? " : "Don't have an account? "}
               </span>
               <button 
-                onClick={() => setIsSignUp(!isSignUp)} 
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setErrorMsg("");
+                }} 
                 className="text-white hover:text-gray-300 font-medium bg-transparent border-none p-0 cursor-pointer transition-colors"
+                type="button"
               >
                 {isSignUp ? "Sign in" : "Sign up"}
               </button>
             </div>
+            </>
+            ) : (
+              <form onSubmit={handleVerify2FA} className="space-y-4">
+                <div className="space-y-2">
+                  <Input
+                    id="totp"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="off"
+                    data-1p-ignore="true"
+                    placeholder="Enter 6-digit code"
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                    required
+                    className="bg-black/40 border-white/10 h-11 text-white placeholder:text-muted-foreground/50 focus-visible:ring-1 focus-visible:ring-white/20 text-center tracking-widest text-lg"
+                  />
+                </div>
+                <Button 
+                  className="w-full bg-white hover:bg-gray-200 text-black h-11 font-medium transition-colors" 
+                  type="submit"
+                  disabled={isLoading || totpCode.length < 6}
+                >
+                  {isLoading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <KeyRound className="mr-2 h-4 w-4" />
+                  )}
+                  Verify Code
+                </Button>
+                <div className="mt-4 text-center text-sm pt-2">
+                  <button 
+                    onClick={() => {
+                      setRequires2FA(false);
+                      setTotpCode("");
+                      setErrorMsg("");
+                    }} 
+                    className="text-white hover:text-gray-300 font-medium bg-transparent border-none p-0 cursor-pointer transition-colors"
+                    type="button"
+                  >
+                    Back to login
+                  </button>
+                </div>
+              </form>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col items-center gap-2 pb-8 pt-4 px-8">
             <p className="text-xs text-muted-foreground/60 text-center">

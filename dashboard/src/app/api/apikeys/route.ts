@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
+import { requireRole } from "@/lib/rbac";
 
 export async function GET(req: Request) {
   try {
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
         rateLimit: apiKeys.rateLimit,
         createdAt: apiKeys.createdAt,
         lastUsedAt: apiKeys.lastUsedAt
-    }).from(apiKeys).where(eq(apiKeys.organizationId, orgId));
+    }).from(apiKeys).where(eq(apiKeys.organizationId, orgId as string));
     
     return NextResponse.json(keys);
   } catch (error) {
@@ -46,18 +47,12 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const authCheck = await requireRole(["admin", "owner"]);
+    if (!authCheck.isAuthorized) {
+      return authCheck.response;
     }
-
-    const orgId = session.session.activeOrganizationId;
-    if (!orgId) {
-      return new NextResponse("Organization required", { status: 400 });
-    }
+    
+    const { session, orgId } = authCheck;
 
     const body = await req.json();
     const { name, environment, budget, rateLimit } = body;
@@ -69,7 +64,7 @@ export async function POST(req: Request) {
     // Check for existing key with the same name in this organization
     const existingKey = await db.select().from(apiKeys).where(
       and(
-        eq(apiKeys.organizationId, orgId),
+        eq(apiKeys.organizationId, orgId as string),
         eq(apiKeys.name, name)
       )
     );
@@ -89,7 +84,7 @@ export async function POST(req: Request) {
       budget: budget ? parseInt(budget) : null,
       rateLimit: rateLimit ? parseInt(rateLimit) : 60,
       organizationId: orgId,
-      userId: session.user.id
+      userId: session!.user.id
     }).returning();
 
     return NextResponse.json(newKey);

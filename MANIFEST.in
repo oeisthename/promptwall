@@ -1,1 +1,3 @@
-recursive-include dashboard *
+recursive-include dashboard/.next/standalone *
+recursive-exclude dashboard/node_modules *
+recursive-exclude dashboard/.next/cache *

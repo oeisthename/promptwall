@@ -18,8 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 export default function SettingsPage() {
   const { data: session, isPending: sessionPending } = authClient.useSession();
-  const { data: activeSessions } = (authClient as any).useListSessions ? (authClient as any).useListSessions() : { data: [] };
-  
+  const [activeSessions, setActiveSessions] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [roleChecked, setRoleChecked] = useState(false);
 
@@ -30,6 +29,10 @@ export default function SettingsPage() {
   const [totpURI, setTotpURI] = useState("");
   const [mfaCode, setMfaCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
+
+  const [mfaPasswordDialogOpen, setMfaPasswordDialogOpen] = useState(false);
+  const [mfaPassword, setMfaPassword] = useState("");
+  const [isGeneratingMfa, setIsGeneratingMfa] = useState(false);
 
   // --- Org Settings State ---
   const [webhookUrl, setWebhookUrl] = useState("");
@@ -95,6 +98,18 @@ export default function SettingsPage() {
   }, [session?.user?.id]);
 
   useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const { data } = await authClient.listSessions();
+        if (data) setActiveSessions(data);
+      } catch (e) {
+        console.error("Failed to fetch sessions", e);
+      }
+    };
+    fetchSessions();
+  }, []);
+
+  useEffect(() => {
     const fetchOrgSettings = async () => {
       if (!isAdmin) {
         setIsLoadingOrg(false);
@@ -156,14 +171,24 @@ export default function SettingsPage() {
     }
   };
 
+  const handleStartMfaSetup = () => {
+    setMfaPassword("");
+    setMfaPasswordDialogOpen(true);
+  };
+
   const handleEnableMFA = async () => {
+    if (!mfaPassword) return toast.error("Password is required");
+    setIsGeneratingMfa(true);
     try {
-      const { data, error } = await authClient.twoFactor.enable({} as any);
+      const { data, error } = await authClient.twoFactor.enable({ password: mfaPassword } as any);
       if (error) throw error;
       setTotpURI(data?.totpURI || "");
+      setMfaPasswordDialogOpen(false);
       setMfaDialogOpen(true);
     } catch (e: any) {
-      toast.error("Failed to generate MFA secret. " + e.message);
+      toast.error(e.message || "Failed to generate MFA secret.");
+    } finally {
+      setIsGeneratingMfa(false);
     }
   };
 
@@ -331,11 +356,42 @@ export default function SettingsPage() {
                       </h4>
                       <p className="text-xs text-muted-foreground">Add an extra layer of security to your account.</p>
                     </div>
-                    <Button variant="outline" onClick={handleEnableMFA} className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+                    <Button variant="outline" onClick={handleStartMfaSetup} className="border-white/10 bg-white/5 text-white hover:bg-white/10">
                       Setup MFA
                     </Button>
                   </div>
                   
+                  <Dialog open={mfaPasswordDialogOpen} onOpenChange={setMfaPasswordDialogOpen}>
+                    <DialogContent className="sm:max-w-md bg-black border border-white/10 text-white">
+                      <DialogHeader>
+                        <DialogTitle>Confirm Password</DialogTitle>
+                        <DialogDescription className="text-muted-foreground">
+                          Please enter your password to enable Two-Factor Authentication.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4 space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="password" className="text-white">Password</Label>
+                          <Input
+                            id="password"
+                            type="password"
+                            placeholder="••••••••"
+                            value={mfaPassword}
+                            onChange={(e) => setMfaPassword(e.target.value)}
+                            className="bg-black/40 border-white/10 text-white"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter className="sm:justify-end">
+                        <Button variant="outline" className="border-white/10 text-white" onClick={() => setMfaPasswordDialogOpen(false)}>Cancel</Button>
+                        <Button className="bg-white text-black hover:bg-gray-200" onClick={handleEnableMFA} disabled={isGeneratingMfa}>
+                          {isGeneratingMfa && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Continue
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+
                   <Dialog open={mfaDialogOpen} onOpenChange={setMfaDialogOpen}>
                     <DialogContent className="sm:max-w-md bg-black border border-white/10 text-white">
                       <DialogHeader>

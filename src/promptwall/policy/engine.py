@@ -78,6 +78,11 @@ class PolicyEngine:
                 }
                 if rule.action == "redact":
                     decision["redact_pattern"] = self._redact_pattern_for(condition)
+
+                # If DLP matched, attach the results for the anonymizer
+                dlp_results = getattr(condition, "_dlp_results", None)
+                if dlp_results:
+                    decision["dlp_results"] = dlp_results
                 return decision
 
         return {"action": "allow", "matched_rule": None, "severity": None, "tool_call": tool_call}

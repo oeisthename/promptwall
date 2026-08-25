@@ -99,7 +99,21 @@ def evaluate_condition(
         return is_member if op == "in" else not is_member
 
     if op in ("contains", "not contains"):
-        if is_pattern:
+        if condition.value.startswith("dlp:"):
+            entities = condition.value.split(":", 1)[1].split(",")
+            entities = [e.strip() for e in entities if e.strip()]
+            from promptwall.policy.dlp import PresidioWrapper
+
+            dlp_wrapper = PresidioWrapper.get_instance()
+            results = dlp_wrapper.analyze(field_str, entities)
+            found = len(results) > 0
+            if found:
+                # We stash the results directly onto the condition object temporarily
+                # so the engine can pick them up. This is a bit of a hack but avoids
+                # changing the evaluate_condition signature.
+                condition._dlp_results = results  # type: ignore[attr-defined]
+            return found if op == "contains" else not found
+        elif is_pattern:
             pattern = _resolve_pattern(definitions, condition.value.split(":", 1)[1])
             found = re.search(pattern, field_str) is not None
         else:

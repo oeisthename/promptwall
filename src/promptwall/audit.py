@@ -5,6 +5,7 @@ import sqlite3
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 CONFIG_DIR = Path.home() / ".promptwall"
 DB_PATH = CONFIG_DIR / "audit.db"
@@ -110,18 +111,19 @@ class AuditLogger:
         api_key = get_api_key()
         base_url = get_base_url()
 
+        payload = {
+            "action": decision,
+            "ruleName": matched_rule,
+            "fullRequest": original_prompt,
+            "promptPreview": sanitized_prompt,
+            "latencyMs": latency,
+            "severity": "medium",  # Defaulting severity
+        }
+
         if api_key and base_url:
             try:
                 # Dashboard audit API endpoint
                 url = f"{base_url.rstrip('/')}/api/audit"
-                payload = {
-                    "action": decision,
-                    "ruleName": matched_rule,
-                    "fullRequest": original_prompt,
-                    "promptPreview": sanitized_prompt,
-                    "latencyMs": latency,
-                    "severity": "medium",  # Defaulting severity
-                }
                 async with httpx.AsyncClient() as client:
                     await client.post(
                         url,
@@ -132,6 +134,56 @@ class AuditLogger:
             except Exception:
                 # Silently fail sync if dashboard is unreachable, local SQLite has it
                 pass
+
+        # 3. Forward to SIEM integrations
+        await self._forward_to_siem(payload)
+
+    async def _forward_to_siem(self, payload: dict[str, Any]) -> None:
+        if not hasattr(self, "_siem_integrations"):
+            self._siem_integrations = []
+            from promptwall.cli.config import get_api_key, get_base_url
+
+            api_key = get_api_key()
+            base_url = get_base_url()
+            if api_key and base_url:
+                try:
+                    from promptwall.client import PromptWallClient
+
+                    client = PromptWallClient(api_key=api_key, base_url=base_url)
+                    integrations = client.fetch_siem_integrations()
+                    self._siem_integrations = [i for i in integrations if i.get("enabled")]
+                except Exception:
+                    pass
+
+        if not self._siem_integrations:
+            return
+
+        import httpx
+
+        async with httpx.AsyncClient() as http_client:
+            for siem in self._siem_integrations:
+                provider = siem.get("provider")
+                endpoint = siem.get("endpoint")
+                siem_key = str(siem.get("apiKey") or "")
+                if not endpoint:
+                    continue
+
+                headers = {"Content-Type": "application/json"}
+                try:
+                    if provider == "datadog":
+                        headers["DD-API-KEY"] = siem_key
+                        await http_client.post(endpoint, json=payload, headers=headers, timeout=2.0)
+                    elif provider == "splunk":
+                        headers["Authorization"] = f"Splunk {siem_key}"
+                        await http_client.post(
+                            endpoint, json={"event": payload}, headers=headers, timeout=2.0
+                        )
+                    elif provider in ("elk", "wazuh"):
+                        if siem_key:
+                            headers["Authorization"] = f"Bearer {siem_key}"
+                        await http_client.post(endpoint, json=payload, headers=headers, timeout=2.0)
+                except Exception:
+                    pass
 
     def get_today_cost(self) -> float:
         """Get the total cost for the current UTC day."""

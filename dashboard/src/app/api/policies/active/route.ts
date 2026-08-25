@@ -71,6 +71,9 @@ export async function GET(req: Request) {
           mergedPolicy.definitions.patterns[patternName] = rule.match;
           pythonRule.match = `output contains pattern:${patternName}`;
           mergedPolicy.rules.push(pythonRule);
+        } else if (rule.type === "dlp" && rule.match) {
+          pythonRule.match = `output contains dlp:${rule.match}`;
+          mergedPolicy.rules.push(pythonRule);
         } else if (rule.type === "keyword" && rule.keywords && rule.keywords.length > 0) {
           const patternName = `pattern_${patternCounter++}`;
           // Build a simple regex for keywords

@@ -335,10 +335,50 @@ app.add_typer(dashboard_app, name="dashboard")
 app.add_typer(budget_app, name="budget")
 app.add_typer(replay_app, name="replay")
 
+dlp_app = typer.Typer(help="Manage Native DLP settings and NLP models")
+app.add_typer(dlp_app, name="dlp")
+
+
+@dlp_app.command("install")
+def dlp_install() -> None:
+    """Download the required NLP models for Presidio Native DLP."""
+    import sys
+
+    console.print("[cyan]Installing NLP models for Native DLP...[/cyan]")
+    console.print(
+        "[dim]This will download the English (en_core_web_sm) and Multi-language (xx_ent_wiki_sm) models.[/dim]"
+    )
+
+    try:
+        import importlib.util
+
+        if importlib.util.find_spec("spacy") is None:
+            raise ImportError
+    except ImportError:
+        console.print(
+            "[bold red]SpaCy is not installed! Run pip install promptwall\\[dlp] first.[/bold red]"
+        )
+        raise typer.Exit(1) from None
+
+    try:
+        console.print("Downloading en_core_web_sm (English)...")
+        subprocess.run([sys.executable, "-m", "spacy", "download", "en_core_web_sm"], check=True)
+        console.print("Downloading xx_ent_wiki_sm (Multi-language)...")
+        subprocess.run([sys.executable, "-m", "spacy", "download", "xx_ent_wiki_sm"], check=True)
+        console.print(
+            "[bold green]✔[/bold green] NLP models installed successfully! Native DLP is ready."
+        )
+    except Exception as e:
+        console.print(f"[bold red]Failed to install models: {e}[/bold red]")
+        raise typer.Exit(1) from e
+
 
 @dashboard_app.command("start")
 def dashboard_start() -> None:
     """Start the Next.js local dashboard orchestrator."""
+    import shutil
+    import sys
+
     console.print(PROMPTWALL_ART, overflow="crop", no_wrap=True)
     console.print(
         Panel.fit(
@@ -348,35 +388,165 @@ def dashboard_start() -> None:
         )
     )
 
-    # Resolve dashboard path (assuming running from source tree for now)
-    package_dir = Path(__file__).resolve().parent.parent.parent.parent
+    package_dir = Path(__file__).resolve().parent.parent
+    cli_dir = Path(__file__).resolve().parent
     dashboard_dir = package_dir / "dashboard"
-    docker_compose_file = package_dir / "docker-compose.yml"
+    promptwall_home = Path.home() / ".promptwall"
+    promptwall_home.mkdir(parents=True, exist_ok=True)
 
-    if not dashboard_dir.exists():
+    # Check for docker
+    import time
+
+    if shutil.which("docker"):
+        console.print("[cyan]Ensuring Postgres and Redis via Docker...[/cyan]")
+        local_docker_compose = promptwall_home / "docker-compose.yml"
+
+        # Determine source of docker-compose
+        source_compose = cli_dir / "docker-compose.yml"
+        if not source_compose.exists() and (package_dir.parent / "docker-compose.yml").exists():
+            source_compose = package_dir.parent / "docker-compose.yml"
+
+        if source_compose.exists():
+            # Copy docker-compose and remove external volume constraint
+            compose_content = source_compose.read_text()
+            compose_content = compose_content.replace("external: true", "")
+            local_docker_compose.write_text(compose_content)
+
+            try:
+                # Start containers
+                subprocess.run(
+                    ["docker", "compose", "up", "-d"],
+                    cwd=promptwall_home,
+                    check=True,
+                    capture_output=True,
+                )
+
+                # Check and run migrations if needed
+                source_schema = cli_dir / "schema.sql"
+                if (
+                    not source_schema.exists()
+                    and (
+                        package_dir.parent / "dashboard" / "drizzle" / "0000_shiny_liz_osborn.sql"
+                    ).exists()
+                ):
+                    source_schema = (
+                        package_dir.parent / "dashboard" / "drizzle" / "0000_shiny_liz_osborn.sql"
+                    )
+
+                if source_schema.exists():
+                    # Wait for postgres to be ready
+                    console.print("[dim]Waiting for PostgreSQL to be ready...[/dim]")
+                    for _ in range(15):
+                        res = subprocess.run(
+                            [
+                                "docker",
+                                "compose",
+                                "exec",
+                                "-T",
+                                "db",
+                                "pg_isready",
+                                "-U",
+                                "postgres",
+                            ],
+                            cwd=promptwall_home,
+                            capture_output=True,
+                        )
+                        if res.returncode == 0:
+                            break
+                        time.sleep(1)
+
+                    # Import schema
+                    local_schema = promptwall_home / "schema.sql"
+                    local_schema.write_text(source_schema.read_text())
+                    console.print("[dim]Applying database schema if empty...[/dim]")
+                    # We run it ignoring errors in case tables already exist
+                    subprocess.run(
+                        "cat schema.sql | docker compose exec -T db psql -U postgres -d promptwall",
+                        cwd=promptwall_home,
+                        shell=True,
+                        capture_output=True,
+                    )
+            except Exception as e:
+                console.print(f"[bold red]Failed to start docker containers: {e}[/bold red]")
+                console.print("[yellow]Continuing anyway...[/yellow]")
+        else:
+            console.print(
+                "[yellow]No docker-compose.yml found in package. Skipping DB setup.[/yellow]"
+            )
+    else:
         console.print(
-            "[bold red]Error:[/bold red] Could not find the dashboard directory. "
-            "Are you running from the source repository?"
+            "[yellow]Docker not found. Skipping auto DB setup. Ensure Postgres and Redis are running manually.[/yellow]"
+        )
+
+    # Check for node
+    node_bin = shutil.which("node")
+    if not node_bin:
+        console.print("[yellow]Node.js not found globally. Installing via nodeenv...[/yellow]")
+        env_dir = Path.home() / ".promptwall" / "nodeenv"
+        if not env_dir.exists():
+            console.print(
+                "[cyan]Setting up local Node.js environment (this may take a minute)...[/cyan]"
+            )
+            try:
+                subprocess.run([sys.executable, "-m", "nodeenv", str(env_dir)], check=True)
+            except Exception as e:
+                console.print(f"[bold red]Failed to install Node.js via nodeenv: {e}[/bold red]")
+                raise typer.Exit(1) from e
+        node_bin = str(env_dir / "bin" / "node")
+
+    # Determine command based on whether bundled dashboard exists
+    if (dashboard_dir / "server.js").exists():
+        console.print("[cyan]Starting Next.js Production Standalone Server...[/cyan]")
+        cmd = [node_bin, "server.js"]
+        cwd = dashboard_dir
+        env = os.environ.copy()
+        env["PORT"] = "3000"
+    elif (package_dir.parent / "dashboard").exists():
+        # Fallback to dev mode if running from source tree and bundle not found
+        console.print(
+            "[yellow]Standalone bundle not found. Falling back to development server...[/yellow]"
+        )
+        npm_bin = shutil.which("npm") or str(Path(node_bin).parent / "npm")
+        cmd = [npm_bin, "run", "dev"]
+        cwd = package_dir.parent / "dashboard"
+        env = os.environ.copy()
+        env["PORT"] = "3000"
+    else:
+        console.print(
+            "[bold red]Error:[/bold red] Could not find the dashboard directory or standalone bundle."
         )
         raise typer.Exit(1)
 
-    if docker_compose_file.exists():
-        console.print("[cyan]Spinning up Postgres and Redis via Docker...[/cyan]")
-        try:
-            subprocess.run(["docker", "compose", "up", "-d"], cwd=package_dir, check=True)
-        except Exception as e:
-            console.print(f"[bold red]Failed to start docker containers: {e}[/bold red]")
-            console.print("[yellow]Continuing anyway...[/yellow]")
+    # Initialize dashboard environment variables for local operation
+    dashboard_env_file = Path.home() / ".promptwall" / "dashboard.env"
+    if not dashboard_env_file.exists():
+        import secrets
 
-    console.print("[cyan]Starting Next.js Development Server...[/cyan]")
+        dashboard_env_file.parent.mkdir(parents=True, exist_ok=True)
+        console.print("[cyan]Initializing local dashboard configuration...[/cyan]")
+        with open(dashboard_env_file, "w") as f:
+            f.write(f"BETTER_AUTH_SECRET={secrets.token_urlsafe(32)}\n")
+            f.write("BETTER_AUTH_URL=http://localhost:3000\n")
+            f.write("DATABASE_URL=postgresql://postgres:postgres@localhost:5434/promptwall\n")
+            f.write("REDIS_URL=redis://localhost:6379\n")
+
+    # Load dashboard environment variables
+    with open(dashboard_env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, val = line.split("=", 1)
+                if key not in env:
+                    env[key] = val
+
     try:
-        process = subprocess.Popen(["npm", "run", "dev"], cwd=dashboard_dir)
+        process = subprocess.Popen(cmd, cwd=cwd, env=env)
         process.wait()
     except KeyboardInterrupt:
         console.print("\n[bold]Shutting down dashboard...[/bold]")
         process.terminate()
     except Exception as e:
-        console.print(f"[bold red]Failed to start Next.js server: {e}[/bold red]")
+        console.print(f"[bold red]Failed to start server: {e}[/bold red]")
         raise typer.Exit(1) from e
 
 

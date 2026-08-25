@@ -129,6 +129,16 @@ export const user = pgTable("user", {
     routingRules: jsonb("routing_rules")
 });
 
+export const twoFactor = pgTable("twoFactor", {
+	id: text("id").primaryKey(),
+	secret: text("secret").notNull(),
+	backupCodes: text("backupCodes").notNull(),
+	userId: text("userId").notNull().references(() => user.id),
+	verified: boolean("verified").default(true),
+	failedVerificationCount: integer("failedVerificationCount").default(0),
+	lockedUntil: timestamp("lockedUntil"),
+});
+
 export const session = pgTable("session", {
 	id: text("id").primaryKey(),
 	expiresAt: timestamp("expiresAt").notNull(),

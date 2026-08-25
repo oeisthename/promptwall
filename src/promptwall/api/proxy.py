@@ -40,6 +40,9 @@ def extract_prompt_from_messages(messages: list[dict[str, Any]]) -> str:
     )  # noqa: E501
 
 
+_request_times: list[float] = []
+
+
 def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAPI:
     app = FastAPI(title="PromptWall Proxy")
 
@@ -80,6 +83,35 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                     prompt_str = extract_prompt_from_messages(messages)
 
                 if prompt_str:
+                    limits = enforcer.policy_engine.policy.limits
+                    if limits and limits.requests_per_minute > 0:
+                        global _request_times
+                        now = time.time()
+                        _request_times = [t for t in _request_times if now - t < 60]
+                        if len(_request_times) >= limits.requests_per_minute:
+                            background_tasks.add_task(
+                                audit_logger.log_event,
+                                decision="block",
+                                original_prompt=prompt_str,
+                                latency=0.0,
+                                matched_rule="rate_limit_exceeded",
+                                sanitized_prompt=None,
+                                score=0.0,
+                                tokens=0,
+                                cost=0.0,
+                            )
+                            return JSONResponse(
+                                status_code=429,
+                                content={
+                                    "error": {
+                                        "message": f"PromptWall Rate Limit Exceeded: {limits.requests_per_minute} requests per minute.",
+                                        "type": "rate_limit_exceeded",
+                                        "code": "promptwall_blocked",
+                                    }
+                                },
+                            )
+                        _request_times.append(now)
+
                     start_time = time.perf_counter()
                     decision = enforcer.enforce(tool_call={"name": "proxy"}, content=prompt_str)
                     latency = round((time.perf_counter() - start_time) * 1000, 2)

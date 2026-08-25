@@ -62,6 +62,24 @@ export async function POST(req: Request) {
           }
         }
         if (decision === "block") break;
+      } else if (policy.type === "dlp" && policy.match) {
+        const dlpTypes = policy.match.split(',').map((s: string) => s.trim());
+        let matched = false;
+        if (dlpTypes.includes("EMAIL_ADDRESS") && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i.test(prompt)) {
+          matched = true;
+        }
+        if (dlpTypes.includes("CREDIT_CARD") && /\b(?:\d[ -]*?){13,16}\b/.test(prompt)) {
+          matched = true;
+        }
+        if (dlpTypes.includes("PHONE_NUMBER") && /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/.test(prompt)) {
+          matched = true;
+        }
+        if (matched) {
+          decision = policy.action || "block";
+          reason = `Matched DLP rule: ${policy.name}`;
+          score = 0.95;
+          break;
+        }
       }
     }
 

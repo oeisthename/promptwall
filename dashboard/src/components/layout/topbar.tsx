@@ -22,6 +22,32 @@ export function Topbar() {
   const { data: session } = authClient.useSession();
   const [openCommand, setOpenCommand] = React.useState(false);
 
+  const [notifications, setNotifications] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchNotifications() {
+      try {
+        const res = await fetch('/api/audit?limit=5&decision=block');
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch notifications", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    // Fetch notifications if session exists
+    if (session) {
+      fetchNotifications();
+      // Optional: poll every 30s
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [session]);
+
   const handleSignOut = async () => {
     await authClient.signOut();
     router.push("/login");
@@ -45,21 +71,30 @@ export function Topbar() {
             <DropdownMenuTrigger className="text-muted-foreground relative inline-flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none">
               <span className="sr-only">View notifications</span>
               <Bell className="h-5 w-5" aria-hidden="true" />
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-cyan-500 animate-pulse"></span>
+              {notifications.length > 0 && (
+                <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-cyan-500 animate-pulse"></span>
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Notifications</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <div className="max-h-[300px] overflow-y-auto p-2 space-y-2">
-                  <div className="text-sm p-2 rounded bg-white/5 border border-white/10">
-                    <p className="font-medium text-white">System Update</p>
-                    <p className="text-muted-foreground text-xs">PromptWall v2 successfully deployed and operational.</p>
-                  </div>
-                  <div className="text-sm p-2 rounded bg-white/5 border border-white/10">
-                    <p className="font-medium text-white">Policy Alert</p>
-                    <p className="text-muted-foreground text-xs">A new anomaly pattern was blocked 5 mins ago.</p>
-                  </div>
+                  {loading ? (
+                    <div className="text-center text-xs text-muted-foreground py-4">Loading...</div>
+                  ) : notifications.length > 0 ? (
+                    notifications.map((notif, i) => (
+                      <div key={i} className="text-sm p-2 rounded bg-white/5 border border-white/10">
+                        <p className="font-medium text-red-400">Policy Block ({notif.matchedRule})</p>
+                        <p className="text-muted-foreground text-xs line-clamp-2 mt-1">Prompt: {notif.prompt}</p>
+                        <p className="text-muted-foreground text-[10px] mt-1 opacity-70">
+                          {new Date(notif.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center text-xs text-muted-foreground py-4">No new alerts.</div>
+                  )}
                 </div>
               </DropdownMenuGroup>
             </DropdownMenuContent>

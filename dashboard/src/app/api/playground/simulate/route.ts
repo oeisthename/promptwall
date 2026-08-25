@@ -66,6 +66,59 @@ export async function POST(req: Request) {
             }
           }
         }
+      } 
+      
+      let policyType = 'regex';
+      try {
+        const parsed = require('js-yaml').load(policy.content || "") as any;
+        if (parsed && parsed.policies && parsed.policies.length > 0) {
+           policyType = parsed.policies[0].type || 'regex';
+        }
+      } catch (e) {}
+
+      if (policyType === 'dlp' && policy.match) {
+        const dlpTypes = policy.match.split(',').map((s: string) => s.trim());
+        let matched = false;
+        let tempPrompt = redactedPrompt;
+        
+        if (dlpTypes.includes("EMAIL_ADDRESS")) {
+          const regex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
+          if (regex.test(tempPrompt)) {
+             matched = true;
+             if (policy.action === 'redact') {
+                tempPrompt = tempPrompt.replace(regex, '[EMAIL_ADDRESS]');
+             }
+          }
+        }
+        if (dlpTypes.includes("CREDIT_CARD")) {
+          const regex = /\b(?:\d[ -]*?){13,16}\b/g;
+          if (regex.test(tempPrompt)) {
+             matched = true;
+             if (policy.action === 'redact') {
+                tempPrompt = tempPrompt.replace(regex, '[CREDIT_CARD]');
+             }
+          }
+        }
+        if (dlpTypes.includes("PHONE_NUMBER")) {
+          const regex = /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g;
+          if (regex.test(tempPrompt)) {
+             matched = true;
+             if (policy.action === 'redact') {
+                tempPrompt = tempPrompt.replace(regex, '[PHONE_NUMBER]');
+             }
+          }
+        }
+        
+        if (matched) {
+          matchedRule = policy.name;
+          if (policy.action === 'block') {
+            decision = 'block';
+            break;
+          } else if (policy.action === 'redact') {
+            decision = 'redact';
+            redactedPrompt = tempPrompt;
+          }
+        }
       }
       if (decision === 'block') break; // stop evaluating if blocked
     }
