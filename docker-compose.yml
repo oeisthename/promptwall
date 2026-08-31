@@ -1,28 +1,50 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgres:16-alpine
+  postgres:
+    image: postgres:15-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: promptwall
+      POSTGRES_USER: promptwall
+      POSTGRES_PASSWORD: promptwallpassword
+      POSTGRES_DB: promptwall_dashboard
     ports:
-      - "5434:5432"
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U promptwall -d promptwall_dashboard"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
     ports:
-      - "6379:6379"
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://promptwall:promptwallpassword@postgres:5432/promptwall_dashboard
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=supersecret123
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    ports:
+      - "8000:8000"
+    environment:
+      - PROMPTWALL_BASE_URL=http://dashboard:3000
+      - PROMPTWALL_API_KEY=local-dev-key
+    volumes:
+      - promptwall-data:/root/.promptwall
+    depends_on:
+      - dashboard
 
 volumes:
-  postgres_data:
-    name: promptwallv2_postgres_data
-    external: true
+  pgdata:
+  promptwall-data:

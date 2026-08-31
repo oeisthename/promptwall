@@ -40,6 +40,32 @@ def extract_prompt_from_messages(messages: list[dict[str, Any]]) -> str:
     )  # noqa: E501
 
 
+def extract_session_id(headers: dict[str, str], payload: dict[str, Any]) -> str | None:
+    """Extract session or thread ID across multiple LLM provider formats and custom headers."""
+    # 1. Check custom headers
+    for h in ("x-session-id", "x-thread-id", "x-user-id"):
+        if h in headers:
+            return headers[h]
+
+    # 2. Check JSON Payload
+    if "session_id" in payload:
+        return str(payload["session_id"])
+    if "thread_id" in payload:
+        return str(payload["thread_id"])
+    if "user" in payload:  # OpenAI
+        return str(payload["user"])
+
+    # 3. Check Anthropic metadata format
+    if "metadata" in payload and isinstance(payload["metadata"], dict):
+        metadata = payload["metadata"]
+        if "user_id" in metadata:
+            return str(metadata["user_id"])
+        if "session_id" in metadata:
+            return str(metadata["session_id"])
+
+    return None
+
+
 _request_times: list[float] = []
 
 
@@ -70,12 +96,15 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
 
         body_bytes = await request.body()
         is_stream = False
+        session_id = None
+        req_headers = {k.lower(): v for k, v in request.headers.items()}
 
         if request.method == "POST" and ("chat/completions" in path or "completions" in path):
             try:
                 payload = json.loads(body_bytes)
                 is_stream = payload.get("stream", False)
                 messages = payload.get("messages", [])
+                session_id = extract_session_id(req_headers, payload)
 
                 if "prompt" in payload and not messages:
                     prompt_str = payload["prompt"]
@@ -99,6 +128,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                                 score=0.0,
                                 tokens=0,
                                 cost=0.0,
+                                session_id=session_id,
                             )
                             return JSONResponse(
                                 status_code=429,
@@ -132,6 +162,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                                 score=0.0,
                                 tokens=0,
                                 cost=0.0,
+                                session_id=session_id,
                             )
                             return JSONResponse(
                                 status_code=429,
@@ -157,6 +188,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                             score=0.0,
                             tokens=0,
                             cost=0.0,
+                            session_id=session_id,
                         )
                         return JSONResponse(
                             status_code=403,
@@ -221,6 +253,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                         score=0.0,
                         tokens=est_tokens,
                         cost=(est_tokens / 1000) * 0.001,
+                        session_id=session_id,
                     )
                 upstream_response = await http_client.send(req, stream=True)
                 upstream_response.raise_for_status()
@@ -259,6 +292,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
                         score=0.0,
                         tokens=act_tokens,
                         cost=(act_tokens / 1000) * 0.001,
+                        session_id=session_id,
                     )
 
                 return Response(
