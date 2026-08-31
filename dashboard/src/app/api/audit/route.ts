@@ -90,9 +90,9 @@ export async function POST(req: Request) {
       matchedRule: body.ruleName || "none",
       severity: body.severity || "low",
       prompt: typeof body.fullRequest === 'string' ? body.fullRequest : JSON.stringify(body.fullRequest),
-      sanitized: body.promptPreview || null,
+      sanitized: body.promptPreview || "",
       score: 0.0,
-      latency: body.latencyMs || 0,
+      latency: Math.round(body.latencyMs || 0),
       hash: hash,
       parentHash: parentHash,
       plane: 'output'
