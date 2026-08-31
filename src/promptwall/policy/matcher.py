@@ -14,7 +14,7 @@ _ONE_WORD_OPERATORS = {"in", "contains", "startswith", "==", "!="}
 _ALL_OPERATORS = _TWO_WORD_OPERATORS | _ONE_WORD_OPERATORS
 
 
-@dataclass(frozen=True)
+@dataclass
 class Condition:
     field: str
     operator: str
