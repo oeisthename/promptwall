@@ -32,7 +32,6 @@ from promptwall.cli.config import (
 )
 from promptwall.cli.replay import replay_app
 from promptwall.client import PromptWallClient
-from promptwall.enforcer import Enforcer
 
 app = typer.Typer(help="PromptWall - Runtime security middleware for AI agents")
 console = Console()
@@ -246,6 +245,7 @@ def test(
     if policy_file:
         console.print(f"[bold magenta]Running in STANDALONE MODE using local policy: {policy_file}[/bold magenta]")
         try:
+            from promptwall.enforcer import Enforcer
             enforcer = Enforcer.from_file(policy_file)
         except Exception as e:
             console.print(f"[bold red]Failed to load local policy:[/bold red] {e}")
