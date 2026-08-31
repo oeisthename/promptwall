@@ -170,27 +170,40 @@ def status(
     environment: str = typer.Option(
         "production", "--environment", "-e", help="Environment to check"
     ),
+    policy_file: str = typer.Option(
+        None, "--policy-file", "-p", help="Path to a local policy YAML file (Standalone Mode)"
+    ),
 ) -> None:  # noqa: E501
     """Check connection and view active policies."""
-    api_key = get_api_key()
-    base_url = get_base_url()
-
-    if not api_key or not base_url:
-        console.print(
-            "[bold red]Not configured![/bold red] Run [cyan]promptwall init[/cyan] first."
-        )  # noqa: E501
-        raise typer.Exit(1)
-
-    client = PromptWallClient(api_key=api_key, base_url=base_url)
-
-    with console.status(f"Fetching active policies for [bold]{environment}[/bold]..."):
+    if policy_file:
+        console.print(f"[bold magenta]Running in STANDALONE MODE using local policy: {policy_file}[/bold magenta]")
         try:
-            policy_data = client.fetch_active_policy(environment=environment)
+            from promptwall.enforcer import Enforcer
+            enforcer = Enforcer.from_file(policy_file)
+            rules = getattr(enforcer.policy_engine.policy, "rules", [])
         except Exception as e:
-            console.print(f"[bold red]Failed to connect:[/bold red] {e}")
+            console.print(f"[bold red]Failed to load local policy:[/bold red] {e}")
             raise typer.Exit(1) from e
+    else:
+        api_key = get_api_key()
+        base_url = get_base_url()
 
-    rules = policy_data.get("rules", [])
+        if not api_key or not base_url:
+            console.print(
+                "[bold red]Not configured![/bold red] Run [cyan]promptwall init[/cyan] first, or run with [cyan]--policy-file <path>[/cyan] for Standalone Mode."
+            )  # noqa: E501
+            raise typer.Exit(1)
+
+        client = PromptWallClient(api_key=api_key, base_url=base_url)
+
+        with console.status(f"Fetching active policies for [bold]{environment}[/bold]..."):
+            try:
+                policy_data = client.fetch_active_policy(environment=environment)
+            except Exception as e:
+                console.print(f"[bold red]Failed to connect:[/bold red] {e}")
+                raise typer.Exit(1) from e
+
+        rules = policy_data.get("rules", [])
 
     table = Table(title=f"Active Policies ({environment})")
     table.add_column("Rule Name", style="cyan")
@@ -224,25 +237,38 @@ def test(
     environment: str = typer.Option(
         "production", "--environment", "-e", help="Environment to test against"
     ),
+    policy_file: str = typer.Option(
+        None, "--policy-file", "-p", help="Path to a local policy YAML file (Standalone Mode)"
+    ),
 ) -> None:  # noqa: E501
     """Interactive playground to test prompts against your policies."""
-    api_key = get_api_key()
-    base_url = get_base_url()
-
-    if not api_key or not base_url:
-        console.print(
-            "[bold red]Not configured![/bold red] Run [cyan]promptwall init[/cyan] first."
-        )  # noqa: E501
-        raise typer.Exit(1)
-
-    client = PromptWallClient(api_key=api_key, base_url=base_url)
-
-    with console.status(f"Loading Enforcer rules for [bold]{environment}[/bold]..."):
+    
+    if policy_file:
+        console.print(f"[bold magenta]Running in STANDALONE MODE using local policy: {policy_file}[/bold magenta]")
         try:
-            enforcer = Enforcer.from_api(client, environment=environment)
+            enforcer = Enforcer.from_file(policy_file)
         except Exception as e:
-            console.print(f"[bold red]Failed to load enforcer:[/bold red] {e}")
+            console.print(f"[bold red]Failed to load local policy:[/bold red] {e}")
             raise typer.Exit(1) from e
+    else:
+        api_key = get_api_key()
+        base_url = get_base_url()
+
+        if not api_key or not base_url:
+            console.print(
+                "[bold red]Not configured![/bold red] Run [cyan]promptwall init[/cyan] first, or run with [cyan]--policy-file <path>[/cyan] for Standalone Mode."
+            )  # noqa: E501
+            raise typer.Exit(1)
+
+        client = PromptWallClient(api_key=api_key, base_url=base_url)
+
+        with console.status(f"Loading Enforcer rules for [bold]{environment}[/bold]..."):
+            try:
+                from promptwall.enforcer import Enforcer
+                enforcer = Enforcer.from_api(client, environment=environment)
+            except Exception as e:
+                console.print(f"[bold red]Failed to load enforcer:[/bold red] {e}")
+                raise typer.Exit(1) from e
 
     console.print(
         Panel.fit(
@@ -298,22 +324,29 @@ def serve(
     target: str = typer.Option(
         None, help="Default dynamic upstream provider URL (overrides config)"
     ),  # noqa: E501
+    policy_file: str = typer.Option(
+        None, "--policy-file", "-p", help="Path to a local policy YAML file (Standalone Mode)"
+    ),
 ) -> None:
     """Start the PromptWall reverse proxy server."""
-    api_key = get_api_key()
-    base_url = get_base_url()
+    if not policy_file:
+        api_key = get_api_key()
+        base_url = get_base_url()
 
-    if not api_key or not base_url:
-        console.print(
-            "[bold red]Not configured![/bold red] Run [cyan]promptwall init[/cyan] first."
-        )  # noqa: E501
-        raise typer.Exit(1)
+        if not api_key or not base_url:
+            console.print(
+                "[bold red]Not configured![/bold red] Run [cyan]promptwall init[/cyan] first, or run with [cyan]--policy-file <path>[/cyan] for Standalone Mode."
+            )  # noqa: E501
+            raise typer.Exit(1)
 
     actual_host = host if host is not None else get_proxy_host()
     actual_port = port if port is not None else get_proxy_port()
     actual_target = target if target is not None else get_default_upstream()
 
     console.print(PROMPTWALL_ART, overflow="crop", no_wrap=True)
+    if policy_file:
+        console.print(f"[bold magenta]Running in STANDALONE MODE using policy file: {policy_file}[/bold magenta]\n")
+
     console.print(
         Panel.fit(
             f"[bold green]PromptWall Proxy Running![/bold green]\n\n"
@@ -325,7 +358,7 @@ def serve(
         )
     )
 
-    app_instance = create_proxy_app(default_upstream=actual_target)
+    app_instance = create_proxy_app(default_upstream=actual_target, policy_file=policy_file)
 
     uvicorn.run(app_instance, host=actual_host, port=actual_port, log_level="info")
 

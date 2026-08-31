@@ -24,11 +24,13 @@ logger = logging.getLogger(__name__)
 audit_logger = AuditLogger()
 
 
-def get_enforcer() -> Enforcer:
+def get_enforcer(policy_file: str | None = None) -> Enforcer:
+    if policy_file:
+        return Enforcer.from_file(policy_file)
     api_key = get_api_key()
     base_url = get_base_url()
     if not api_key or not base_url:
-        raise ValueError("PromptWall CLI is not configured. Run 'promptwall init'.")
+        raise ValueError("PromptWall CLI is not configured. Run 'promptwall init' or provide a --policy-file.")
     client = PromptWallClient(api_key=api_key, base_url=base_url)
     return Enforcer.from_api(client, environment="production")
 
@@ -69,7 +71,7 @@ def extract_session_id(headers: dict[str, str], payload: dict[str, Any]) -> str 
 _request_times: list[float] = []
 
 
-def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAPI:
+def create_proxy_app(default_upstream: str = "https://api.openai.com", policy_file: str | None = None) -> FastAPI:
     app = FastAPI(title="PromptWall Proxy")
 
     http_client = httpx.AsyncClient()
@@ -85,7 +87,7 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     async def api_proxy(path: str, request: Request, background_tasks: BackgroundTasks) -> Response:
         try:
-            enforcer = get_enforcer()
+            enforcer = get_enforcer(policy_file)
         except Exception as e:
             logger.error(f"Failed to load enforcer: {e}")
             return JSONResponse(
