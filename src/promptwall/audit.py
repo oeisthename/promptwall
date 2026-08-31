@@ -34,7 +34,8 @@ class AuditLogger:
                     score REAL,
                     latency REAL,
                     tokens INTEGER DEFAULT 0,
-                    cost REAL DEFAULT 0.0
+                    cost REAL DEFAULT 0.0,
+                    session_id TEXT
                 )
                 """
             )
@@ -50,6 +51,9 @@ class AuditLogger:
             with contextlib.suppress(sqlite3.OperationalError):
                 cursor.execute("ALTER TABLE audit_logs ADD COLUMN cost REAL DEFAULT 0.0")
 
+            with contextlib.suppress(sqlite3.OperationalError):
+                cursor.execute("ALTER TABLE audit_logs ADD COLUMN session_id TEXT")
+
             conn.commit()
 
     async def log_event(
@@ -62,6 +66,7 @@ class AuditLogger:
         score: float | None = None,
         tokens: int = 0,
         cost: float = 0.0,
+        session_id: str | None = None,
     ) -> None:
         """Log a prompt enforcement event to the SQLite database and sync to Dashboard.
 
@@ -74,6 +79,7 @@ class AuditLogger:
             score: Confidence score or risk score associated with the decision
             tokens: Estimated or exact tokens used
             cost: Estimated cost in USD
+            session_id: Optional session or thread ID for conversational grouping
         """
         event_id = str(uuid.uuid4())
         # Use UTC timestamp formatted as ISO8601
@@ -85,8 +91,8 @@ class AuditLogger:
             cursor.execute(
                 """
                 INSERT INTO audit_logs 
-                (id, timestamp, decision, matched_rule, original_prompt, sanitized_prompt, score, latency, tokens, cost)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, timestamp, decision, matched_rule, original_prompt, sanitized_prompt, score, latency, tokens, cost, session_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event_id,
@@ -99,6 +105,7 @@ class AuditLogger:
                     latency,
                     tokens,
                     cost,
+                    session_id,
                 ),
             )
             conn.commit()
@@ -118,6 +125,7 @@ class AuditLogger:
             "promptPreview": sanitized_prompt,
             "latencyMs": latency,
             "severity": "medium",  # Defaulting severity
+            "sessionId": session_id,
         }
 
         if api_key and base_url:
