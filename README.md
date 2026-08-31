@@ -41,42 +41,56 @@ MCP Servers / External Tools
          policy editor, audit log viewer
 ```
 
-- **Input Firewall** — scans external content (tool outputs, fetched pages) for
-  prompt injection before it reaches the model.
-- **Policy Engine** — checks every outbound tool call against YAML-defined rules
-  (allowed domains, allowed paths, forbidden output patterns) before it executes.
-- **Audit Ledger** — append-only, SHA-256 hash-chained log of every decision. Tampering
-  with any past entry breaks the chain and is detectable.
+- **ML Input Firewall** — runs a local DeBERTa v3 model on CPU (via ONNX) alongside regex scanning to detect prompt injection attempts before they reach the LLM.
+- **Native DLP** — utilizes Microsoft Presidio to automatically detect and redact PII locally before any prompt leaves your network.
+- **Policy Engine** — checks every outbound tool call against YAML-defined rules (allowed domains, allowed paths, forbidden output patterns) before it executes.
+- **Agentic Tracing** — automatically groups logs into conversation threads by natively extracting Session IDs from OpenAI/Anthropic SDK payloads and headers.
+- **Audit Ledger** — append-only, SHA-256 hash-chained log of every decision. Tampering with any past entry breaks the chain and is detectable.
 
 Full architecture rationale: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Quickstart
 
+PromptWall offers a dual-packaging strategy for both individual developers and enterprise teams.
+
+### 1. Enterprise Deployment (Docker Compose)
+For teams that need the Next.js Control Plane Dashboard and PostgreSQL database.
+
 ```bash
 git clone https://github.com/oeisthename/promptwall.git
 cd promptwall
-docker compose up
+docker compose up -d
 ```
+This spins up the Dashboard (`http://localhost:3000`), the Postgres DB, and the Python Proxy (`http://localhost:8000`).
 
-This starts the API server, the audit database, and the dashboard at
-`http://localhost:3000`.
-
-### Installing the middleware in your own agent
+### 2. Local Developer CLI (PyPI)
+For developers who just want the edge-proxy locally using SQLite.
 
 ```bash
-uv add promptwall
+pip install promptwall
+# Or using uv:
+uv tool install promptwall
+
+# Run the interactive configuration
+promptwall start
+
+# Start the reverse proxy
+promptwall serve
 ```
+
+### Routing your AI App through the Proxy
+
+Configure your OpenAI, LangChain, or Anthropic SDKs to point to the local proxy:
 
 ```python
-from promptwall import PromptWall
+from openai import OpenAI
 
-guard = PromptWall(policy_file="policies/example-agent.yaml")
-
-# Wrap your existing tool-calling logic
-result = guard.enforce(tool_call)
+# The proxy transparently forwards the request after evaluating policies!
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="your-openai-api-key"
+)
 ```
-
-See [`examples/`](examples) for full LangChain and CrewAI integration examples.
 
 ## Writing a policy
 
