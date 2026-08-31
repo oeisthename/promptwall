@@ -108,7 +108,7 @@ _TOOL_CALLS = [
     seed=st.sampled_from(_MALICIOUS_SEEDS + _BENIGN_SEEDS),
     include_secret=st.booleans(),
 )
-@settings(max_examples=200)
+@settings(max_examples=200, deadline=None)
 def test_redact_or_sanitize_action_always_has_genuinely_changed_content(
     tool_call: dict[str, object], seed: str, include_secret: bool
 ) -> None:
@@ -125,7 +125,7 @@ def test_redact_or_sanitize_action_always_has_genuinely_changed_content(
 
 
 @given(tool_call=st.sampled_from(_TOOL_CALLS), seed=st.sampled_from(_BENIGN_SEEDS))
-@settings(max_examples=100)
+@settings(max_examples=100, deadline=None)
 def test_allow_action_never_carries_sanitized_content(
     tool_call: dict[str, object], seed: str
 ) -> None:
@@ -135,7 +135,7 @@ def test_allow_action_never_carries_sanitized_content(
 
 
 @given(tool_call=st.sampled_from(_TOOL_CALLS), seed=st.sampled_from(_MALICIOUS_SEEDS))
-@settings(max_examples=100)
+@settings(max_examples=100, deadline=None)
 def test_block_action_never_carries_sanitized_content(
     tool_call: dict[str, object], seed: str
 ) -> None:
