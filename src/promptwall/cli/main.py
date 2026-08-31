@@ -175,9 +175,12 @@ def status(
 ) -> None:  # noqa: E501
     """Check connection and view active policies."""
     if policy_file:
-        console.print(f"[bold magenta]Running in STANDALONE MODE using local policy: {policy_file}[/bold magenta]")
+        console.print(
+            f"[bold magenta]Running in STANDALONE MODE using local policy: {policy_file}[/bold magenta]"
+        )
         try:
             from promptwall.enforcer import Enforcer
+
             enforcer = Enforcer.from_file(policy_file)
             rules = getattr(enforcer.policy_engine.policy, "rules", [])
         except Exception as e:
@@ -241,11 +244,14 @@ def test(
     ),
 ) -> None:  # noqa: E501
     """Interactive playground to test prompts against your policies."""
-    
+
     if policy_file:
-        console.print(f"[bold magenta]Running in STANDALONE MODE using local policy: {policy_file}[/bold magenta]")
+        console.print(
+            f"[bold magenta]Running in STANDALONE MODE using local policy: {policy_file}[/bold magenta]"
+        )
         try:
             from promptwall.enforcer import Enforcer
+
             enforcer = Enforcer.from_file(policy_file)
         except Exception as e:
             console.print(f"[bold red]Failed to load local policy:[/bold red] {e}")
@@ -265,6 +271,7 @@ def test(
         with console.status(f"Loading Enforcer rules for [bold]{environment}[/bold]..."):
             try:
                 from promptwall.enforcer import Enforcer
+
                 enforcer = Enforcer.from_api(client, environment=environment)
             except Exception as e:
                 console.print(f"[bold red]Failed to load enforcer:[/bold red] {e}")
@@ -345,7 +352,9 @@ def serve(
 
     console.print(PROMPTWALL_ART, overflow="crop", no_wrap=True)
     if policy_file:
-        console.print(f"[bold magenta]Running in STANDALONE MODE using policy file: {policy_file}[/bold magenta]\n")
+        console.print(
+            f"[bold magenta]Running in STANDALONE MODE using policy file: {policy_file}[/bold magenta]\n"
+        )
 
     console.print(
         Panel.fit(

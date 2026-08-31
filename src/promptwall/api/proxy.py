@@ -30,7 +30,9 @@ def get_enforcer(policy_file: str | None = None) -> Enforcer:
     api_key = get_api_key()
     base_url = get_base_url()
     if not api_key or not base_url:
-        raise ValueError("PromptWall CLI is not configured. Run 'promptwall init' or provide a --policy-file.")
+        raise ValueError(
+            "PromptWall CLI is not configured. Run 'promptwall init' or provide a --policy-file."
+        )
     client = PromptWallClient(api_key=api_key, base_url=base_url)
     return Enforcer.from_api(client, environment="production")
 
@@ -71,7 +73,9 @@ def extract_session_id(headers: dict[str, str], payload: dict[str, Any]) -> str 
 _request_times: list[float] = []
 
 
-def create_proxy_app(default_upstream: str = "https://api.openai.com", policy_file: str | None = None) -> FastAPI:
+def create_proxy_app(
+    default_upstream: str = "https://api.openai.com", policy_file: str | None = None
+) -> FastAPI:
     app = FastAPI(title="PromptWall Proxy")
 
     http_client = httpx.AsyncClient()
