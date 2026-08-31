@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: promptwallpassword
       POSTGRES_DB: promptwall_dashboard
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,10 +22,10 @@ services:
       context: ./dashboard
       dockerfile: Dockerfile
     ports:
-      - "3001:3000"
+      - "3000:3000"
     environment:
       - DATABASE_URL=postgres://promptwall:promptwallpassword@postgres:5432/promptwall_dashboard
-      - NEXTAUTH_URL=http://localhost:3001
+      - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=supersecret123
     depends_on:
       postgres:

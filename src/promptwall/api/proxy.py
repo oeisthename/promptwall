@@ -78,10 +78,6 @@ def create_proxy_app(default_upstream: str = "https://api.openai.com") -> FastAP
     async def shutdown_event() -> None:
         await http_client.aclose()
 
-    @app.get("/health")
-    async def health() -> JSONResponse:
-        return JSONResponse(content={"status": "ok"})
-
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     async def api_proxy(path: str, request: Request, background_tasks: BackgroundTasks) -> Response:
         try:
