@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "promptwall"
-version = "0.1.1"
+version = "0.1.2"
 description = "Enterprise-grade runtime security proxy for AI agents — prompt injection detection, policy enforcement, and tamper-evident audit logging."
 readme = "README.md"
 license = "MIT"

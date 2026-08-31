@@ -22,7 +22,7 @@ from promptwall.policy.matcher import parse_match_expression
 
 Action = Literal["allow", "block", "redact", "require_approval"]
 Severity = Literal["low", "medium", "high", "critical"]
-Plane = Literal["output"]
+Plane = Literal["output", "input"]
 
 
 class Definitions(BaseModel):
