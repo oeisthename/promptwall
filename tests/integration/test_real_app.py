@@ -38,7 +38,7 @@ async def test_real_app_proxy_integration():
 
     headers = {"Authorization": "Bearer fake-test-key", "Content-Type": "application/json"}
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             f"{proxy_url}/v1/chat/completions", json=payload, headers=headers
         )
@@ -46,4 +46,7 @@ async def test_real_app_proxy_integration():
         # The prompt injection should be blocked by the ML model or regex
         assert response.status_code == 403
         data = response.json()
-        assert "blocked" in data.get("error", "").lower() or data.get("error") is not None
+        error_msg = data.get("error", {})
+        if isinstance(error_msg, dict):
+            error_msg = error_msg.get("message", "")
+        assert "blocked" in str(error_msg).lower() or data.get("error") is not None

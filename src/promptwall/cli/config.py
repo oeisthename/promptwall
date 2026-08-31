@@ -27,11 +27,13 @@ def save_config(config: dict[str, Any]) -> None:
 
 
 def get_api_key() -> str | None:
-    return get_config().get("api_key")
+    import os
+    return os.environ.get("PROMPTWALL_API_KEY") or get_config().get("api_key")
 
 
 def get_base_url() -> str | None:
-    return get_config().get("base_url")
+    import os
+    return os.environ.get("PROMPTWALL_BASE_URL") or get_config().get("base_url")
 
 
 def get_proxy_host() -> str:
