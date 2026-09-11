@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       for (const rule of parsed.policies) {
         const pythonRule: any = {
           name: rule.name || `Rule_${patternCounter}`,
-          plane: "output", // default for now
+          plane: "input", // Check input instead of output for testing
           action: rule.action || "block",
           severity: "high" // default severity
         };
