@@ -56,12 +56,11 @@ PromptWall offers a dual-packaging strategy for both individual developers and e
 ### 1. Enterprise Deployment (Docker Compose)
 For teams that need the Next.js Control Plane Dashboard and PostgreSQL database.
 
+Download the `promptwall-enterprise-v0.1.3.tar.gz` bundle from the [GitHub Releases](https://github.com/oeisthename/promptwall/releases) page, extract it, and run:
 ```bash
-git clone https://github.com/oeisthename/promptwall.git
-cd promptwall
 docker compose up -d
 ```
-This spins up the Dashboard (`http://localhost:3000`), the Postgres DB, and the Python Proxy (`http://localhost:8000`).
+This spins up the Dashboard (`http://localhost:3002`), the Postgres DB, and the Python Proxy (`http://localhost:8001`).
 
 ### 2. Local Developer CLI (PyPI)
 For developers who just want the edge-proxy locally using SQLite.
